@@ -1,0 +1,7 @@
+# One entry per congress. id = <year>-<city code>, e.g. 2026-VNO.
+# The importer adds a stub entry when a new congress is uploaded; fill in the missing fields here.
+- id: 2026-VNO
+  name: LYMEC Autumn Congress 2026
+  city: Vilnius
+  date_start: 2026-10-23
+  date_end: 2026-10-25

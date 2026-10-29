@@ -1,0 +1,48 @@
+# The 9 chapters of the LYMEC Policy Book, in book order. Titles are verbatim from the Vienna book.
+# last_number: highest resolution number used in that chapter in the Vienna Policy Book
+# (spring 2026). New resolutions get the next free number after it, e.g. 6.21.
+- id: institutions
+  chapter: 1
+  title: EU Institutions and Institutional Reform
+  order: 1
+  last_number: 39
+- id: justice
+  chapter: 2
+  title: Justice and citizens rights
+  order: 2
+  last_number: 65
+- id: culture-education
+  chapter: 3
+  title: Culture, education and youth, Science and technology
+  order: 3
+  last_number: 31
+- id: economy
+  chapter: 4
+  title: Business, Economy, Finance and Tax, Cross-Cutting Policies
+  order: 4
+  last_number: 25
+- id: employment
+  chapter: 5
+  title: Employment and Social Rights
+  order: 5
+  last_number: 8
+- id: climate-energy
+  chapter: 6
+  title: Climate Action, Energy and Natural Resources
+  order: 6
+  last_number: 20
+- id: agriculture
+  chapter: 7
+  title: Agriculture, Fisheries, Food and Animal Welfare
+  order: 7
+  last_number: 10
+- id: regions-transport
+  chapter: 8
+  title: Regions and Local Development, Transport and Travel
+  order: 8
+  last_number: 3
+- id: external-relations
+  chapter: 9
+  title: External Relations and Foreign Affairs
+  order: 9
+  last_number: 85
