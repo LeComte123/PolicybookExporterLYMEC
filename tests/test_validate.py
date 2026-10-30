@@ -250,3 +250,63 @@ def test_cli_exit_codes(repo):
     bad = subprocess.run([sys.executable, script, "--root", repo], capture_output=True, text=True)
     assert bad.returncode == 1
     assert "1 problem(s) found" in bad.stdout
+
+
+# ---------------------------------------------------------------- the status list (resolution_status_list.xlsx)
+
+
+def test_status_list_archives_a_resolution_with_fix(repo, make_status_list):
+    make_status_list(repo, [("6.21", "Title of 2026-Vilnius-12", "archived"), ("6.22", "", "in force")])
+    assert any("the status list marks it as archived" in e for e in errors(repo))
+    report = validate.validate(repo, fix=True)
+    assert report.errors == []
+    assert load(repo, "2026-Vilnius-12").meta["status"] == "archived"
+    assert load(repo, "2026-Vilnius-18").meta["status"] == "in_force"
+    assert validate.validate(repo, fix=True).fixed == []  # nothing left to do
+
+
+def test_status_list_replaced_by_makes_it_superseded(repo, make_status_list):
+    make_status_list(repo, [("6.21", "", "archived", "6.22"), ("6.22", "", "in force")])
+    assert validate.validate(repo, fix=True).errors == []
+    old = load(repo, "2026-Vilnius-12")
+    assert old.meta["status"] == "superseded" and old.meta["superseded_by"] == "2026-Vilnius-18"
+    assert load(repo, "2026-Vilnius-18").meta["replaces"] == ["2026-Vilnius-12"]
+
+
+def test_status_list_title_must_match(repo, make_status_list):
+    """A row with a title only archives the resolution with that title (e.g. after a renumbering)."""
+    make_status_list(repo, [("6.21", "A completely different resolution", "archived")])
+    assert any('marked archived with the title "A completely different resolution"' in e for e in errors(repo, fix=True))
+    assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
+
+
+def test_status_list_row_already_satisfied_by_an_archived_resolution(repo, make_status_list):
+    add(repo, make_meta("2026-Vilnius-20", "6.21", status="archived"))  # the old 6.21; the one in force got the number later
+    make_status_list(repo, [("6.21", "", "archived"), ("6.22", "", "in force")])
+    assert validate.validate(repo, fix=True).errors == []
+    assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
+
+
+def test_status_list_gets_rows_for_new_resolutions(repo, make_status_list):
+    import status_list
+
+    make_status_list(repo, [("6.21", "", "in force")])
+    assert any("no row yet for 6.22" in w for w in validate.validate(repo).warnings)
+    report = validate.validate(repo, fix=True)
+    assert any("rows added for 6.22" in f for f in report.fixed)
+    rows = status_list.load(repo)
+    assert [(r.number, r.title, r.status) for r in rows] == [("6.21", "", "in force"), ("6.22", "Title of 2026-Vilnius-18", "in force")]
+
+
+def test_status_list_in_force_but_file_archived_is_a_warning(repo, make_status_list):
+    path = path_of(repo, "2026-Vilnius-12")
+    path.write_text(path.read_text().replace("status: in_force", "status: archived"))
+    make_status_list(repo, [("6.21", "", "in force"), ("6.22", "", "in force")])
+    report = validate.validate(repo)
+    assert report.errors == []
+    assert any("is archived, but the status list says 'in force'" in w for w in report.warnings)
+
+
+def test_damaged_status_list_is_an_error(repo):
+    (repo / "resolution_status_list.xlsx").write_text("not an Excel file")
+    assert any("cannot be opened" in e for e in errors(repo))

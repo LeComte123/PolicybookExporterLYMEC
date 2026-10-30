@@ -316,17 +316,66 @@ def add_existing(repo, rid, number, title, **extra):
     pbook.write_resolution(pbook.resolution_path(repo, meta), meta, "Old text.")
 
 
-def test_replaces_is_taken_from_the_motion_text(repo):
-    add_existing(repo, "2026-Vilnius-90", "6.03", "The future is Nuclear", congress="2026-Vilnius")
-    text = "<p>This motion replaces: 6.03 The future is Nuclear</p><p>Considering that:</p><ul><li>Atoms.</li></ul>"
+def test_replaces_confirmed_by_the_status_list(repo, make_status_list):
+    add_existing(repo, "2026-Vilnius-90", "6.03", "The future is Nuclear")
+    make_status_list(repo, [("6.03", "The future is Nuclear", "archived", None, "2026-Vilnius")])
+    text = "<p>Considering that:</p><ul><li>Atoms.</li></ul><p>This motion replaces: 6.03 The future is Nuclear</p>"
     write_csv(repo / "imports" / "2026-Vilnius.csv", [motion_row("18", text)])
     plans = imp.run([], repo)
-    assert load(repo, "2026-Vilnius-18").meta["replaces"] == ["2026-Vilnius-90"]
+    assert load(repo, "2026-Vilnius-18").meta["replaces"] == ["2026-Vilnius-90"]  # statement at the end of the text
     assert "This motion replaces: 6.03" in load(repo, "2026-Vilnius-18").body  # the text itself is unchanged
-    assert any("replaces 6.03 The future is Nuclear" in r for r in plans[0].replacements)
+    assert any("replaces 6.03 The future is Nuclear" in r and "confirmed by the status list" in r for r in plans[0].replacements)
+    assert plans[0].unconfirmed == [] and not (repo / "dist" / "status-check.md").exists()
     report = validate.validate(repo, fix=True)
     assert report.errors == []
     assert load(repo, "2026-Vilnius-90").meta["status"] == "superseded"
+
+
+def test_statement_not_in_the_status_list_is_only_reported(repo, make_status_list):
+    add_existing(repo, "2026-Vilnius-90", "6.03", "The future is Nuclear")
+    make_status_list(repo, [("6.03", "The future is Nuclear", "in force")])
+    text = "<p>This motion replaces: 6.03 The future is Nuclear</p><p>Considering that:</p><ul><li>Atoms.</li></ul>"
+    write_csv(repo / "imports" / "2026-Vilnius.csv", [motion_row("18", text)])
+    plans = imp.run([], repo)
+    assert load(repo, "2026-Vilnius-18").meta["replaces"] == []
+    assert validate.validate(repo, fix=True).errors == []
+    assert load(repo, "2026-Vilnius-90").meta["status"] == "in_force"
+    issue = (repo / "dist" / "status-check.md").read_text()
+    assert issue.startswith("# Please check the status list: 2026-Vilnius\n")
+    assert "set 6.03 to 'archived' in resolution_status_list.xlsx and write 6.21 under 'Replaced by'" in issue
+    assert len(plans[0].unconfirmed) == 1
+
+
+def test_archives_statement_and_status_list(repo, make_status_list):
+    add_existing(repo, "2026-Vilnius-90", "6.02", "Old one")
+    add_existing(repo, "2026-Vilnius-91", "6.05", "Other old one")
+    make_status_list(repo, [("6.02", "", "archived", None, "2026-Vilnius"), ("6.05", "", "archived", None, "2026-Vilnius")])
+    write_csv(repo / "imports" / "2026-Vilnius.csv", [motion_row("19", "<p>Archiving Resolutions 6.02, 6.09</p><p>Text.</p>")])
+    plans = imp.run([], repo)
+    assert any("archives 6.02 Old one" in r for r in plans[0].replacements)
+    assert any("6.09 is not in the database yet" in r for r in plans[0].replacements)
+    # the other direction: archived in the list at this congress, not named by any motion
+    assert any("marks 6.05 as archived at 2026-Vilnius, but no motion of this upload mentions it" in n for n in plans[0].notes)
+    assert validate.validate(repo, fix=True).errors == []
+    assert load(repo, "2026-Vilnius-90").meta["status"] == "archived"
+    assert load(repo, "2026-Vilnius-91").meta["status"] == "archived"
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("This motion replaces: 6.03 The future is Nuclear", [("replaces", "6.03")]),
+        ("**This resolution replaces** 4.10 and 4.12.", [("replaces", "4.10"), ("replaces", "4.12")]),
+        ("Replaces: 9.05", [("replaces", "9.05")]),
+        ("This resolution archives Resolution 2.21 Aiming at Ending Female Genital Mutilation", [("archives", "2.21")]),
+        ("Archiving Resolutions 6.02, 6.03, 6.05, 6.09", [("archives", n) for n in ("6.02", "6.03", "6.05", "6.09")]),
+        ("This motion repeals 3.10", [("archives", "3.10")]),
+        ("- Replacing coal with 2.50 GW of wind power", []),  # numbers in ordinary sentences are ignored
+        ("Considering that replacing 3.20 billion euros of subsidies is hard", []),
+    ],
+)
+def test_statements(text, expected):
+    assert imp.statements(f"Considering that:\n\n{text}\n\nLYMEC calls for:") == expected
 
 
 def test_replaced_number_not_in_database_is_reported(repo):

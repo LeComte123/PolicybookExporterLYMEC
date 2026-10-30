@@ -16,7 +16,8 @@ CSV and PDF disagree) stop the import before anything is written; exit code 1.
 Reports: dist/import-report.md (release notes); dist/import-errors.md if motions were skipped and
 dist/import-failed.md if the import stopped. The last two are the texts of the GitHub issues the
 workflow opens: first line "# <issue title>", then the body. dist/new-congress.md is written when a
-congress was not in congresses.yml and a placeholder entry was added.
+congress was not in congresses.yml and a placeholder entry was added, dist/status-check.md when a
+motion says it replaces or archives a resolution that the status list does not mark as archived.
 Other files in imports/ (e.g. the migration material in imports/migration/) are not touched.
 """
 
@@ -37,6 +38,7 @@ import pandas as pd
 from rapidfuzz import fuzz, process
 
 import pbook
+import status_list
 from openslides_pdf import parse_pdf
 
 ACCEPTED_STATES = ("accepted", "adopted")
@@ -52,6 +54,14 @@ SUBMITTER_LINE_RE = re.compile(
     r"^(?P<label>(co[-\s]?)?(submitted|signed|signers?|submitters?))(\s+by)?\s*:\s*(?P<orgs>.*)$", re.I | re.S
 )
 REPLACES_NUMBER_RE = re.compile(r"\b(\d\.\d{2,3})\b")
+# A paragraph that states which resolutions this one replaces or archives (anywhere in the text):
+# "This motion replaces: 6.03 …", "Replaces: …", "This resolution archives Resolution 2.21 …",
+# "Archiving Resolutions 6.02, 6.03 …". Numbers in other sentences are ignored.
+STATEMENT_RE = re.compile(
+    r"^[*_\s]*(?:this\s+(?:motion|resolution)\s+(?P<verb>replaces|archives|repeals)\b"
+    r"|(?P<label>replaces|archives)\s*:|(?P<archiving>archiving)\s+resolutions?\b)",
+    re.I,
+)
 SUGGESTION_CUTOFF = 70
 # Fields kept from an existing file when it is re-imported with --force (they may have been curated).
 KEPT_ON_FORCE = ("number", "status", "superseded_by", "amends")
@@ -86,6 +96,7 @@ class Plan:
     skipped: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     replacements: list[str] = field(default_factory=list)
+    unconfirmed: list[str] = field(default_factory=list)  # statements the status list does not confirm
     congress_stub: dict | None = None
 
 
@@ -268,14 +279,17 @@ def orgs_from_submitters(column: str) -> list[str]:
     return orgs
 
 
-def replaced_numbers(markdown: str) -> list[str]:
-    """Policy Book numbers named in a "This motion replaces: 6.03 …" paragraph."""
-    numbers = []
+def statements(markdown: str) -> list[tuple[str, str]]:
+    """(kind, number) for the resolutions a motion says it replaces or archives; kind is
+    "replaces" or "archives"."""
+    found = []
     for block in markdown.split("\n\n"):
         plain = unescape_markdown(block)
-        if re.search(r"\breplac(es|ing)\b", plain, re.I):
-            numbers += [n for n in REPLACES_NUMBER_RE.findall(plain) if n not in numbers]
-    return numbers
+        if match := STATEMENT_RE.match(plain):
+            verb = (match.group("verb") or match.group("label") or match.group("archiving")).lower()
+            kind = "replaces" if verb.startswith("replac") else "archives"
+            found += [(kind, n) for n in REPLACES_NUMBER_RE.findall(plain) if (kind, n) not in found]
+    return found
 
 
 # ---------------------------------------------------------------- planning one upload
@@ -313,6 +327,7 @@ def find_sources(files: list[Path], root: Path) -> dict[str, list[Path]]:
 
 def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force: bool) -> Plan:
     plan = Plan(congress, sources)
+    ctx["claimed"] = set()  # numbers the motions of this upload say they replace or archive
     csv_path = next((p for p in sources if p.suffix.lower() == ".csv"), None)
     pdf_path = next((p for p in sources if p.suffix.lower() == ".pdf"), None)
 
@@ -429,24 +444,49 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
         add_replacements(new, body, ctx, plan)
         plan.writes.append((path, meta, body))
         plan.imported.append(f"{meta['number']} {meta['title']} ({rid}, chapter {chapter})")
+
+    # The other direction of the check: archived at this congress according to the list, not named by a motion
+    for row in ctx["status_list"] or []:
+        if row.status == "archived" and row.archived_at.lower() == congress.lower() and row.number not in ctx["claimed"]:
+            plan.notes.append(
+                f"The status list marks {row.number} as archived at {congress}, but no motion of this upload mentions it. "
+                "It is archived anyway, because the status list decides."
+            )
     return plan
 
 
 def add_replacements(new: pbook.Resolution, body: str, ctx: dict, plan: Plan) -> None:
-    """Fill `replaces` from "This motion replaces: 6.03" and suggest similar older titles."""
+    """Check "This motion replaces/archives 6.03" against the status list and suggest similar older titles.
+
+    A statement only takes effect when the status list marks the resolution as archived (the Bureau
+    confirms it); otherwise the Bureau is asked to check. "replaces" sets `replaces`, so the old
+    resolution becomes superseded; "archives" needs nothing here: validate.py --fix archives every
+    resolution the list marks as archived.
+    """
     others = [r for r in ctx["resolutions"] if r.id != new.id]
     # numbers of archived resolutions can be used again after a renumbering: the one in force wins
     by_number = {r.number: r for r in sorted(others, key=lambda r: r.meta.get("status") == "in_force")}
     label = f"{new.meta['number']} ({new.id})"
-    for number in replaced_numbers(body):
+    for kind, number in statements(body):
         old = by_number.get(number)
+        verb = "replaces" if kind == "replaces" else "archives"
+        ctx["claimed"].add(number)
         if old is None:
-            plan.replacements.append(
-                f"{label} says it replaces {number}, but {number} is not in the database yet. Add {number} to 'replaces' once it is."
+            plan.replacements.append(f"{label} says it {verb} {number}, but {number} is not in the database yet.")
+            continue
+        old_label = f"{number} {old.meta.get('title')}"
+        if not status_list.archived_row(ctx["status_list"], number, str(old.meta.get("title", ""))):
+            hint = f" and write {new.meta['number']} under 'Replaced by'" if kind == "replaces" else ""
+            plan.unconfirmed.append(
+                f"{label} {new.meta['title']} says it {verb} {old_label}, but the status list does not mark {number} "
+                f"as archived. If the congress decided this, set {number} to 'archived' in {status_list.FILE}{hint}. "
+                f"Otherwise nothing needs to be done: {number} stays in force."
             )
-        elif old.id not in new.meta["replaces"]:
+        elif kind == "replaces" and old.id not in new.meta["replaces"]:
             new.meta["replaces"].append(old.id)
-            plan.replacements.append(f"{label} replaces {number} {old.meta.get('title')} ({old.id}), as stated in its text.")
+            plan.replacements.append(f"{label} replaces {old_label} ({old.id}), as stated in its text and confirmed by the status list.")
+        elif kind == "archives":
+            plan.replacements.append(f"{label} archives {old_label} ({old.id}), as stated in its text and confirmed by the status list.")
 
     candidates = {
         r.id: str(r.meta.get("title", ""))
@@ -514,7 +554,8 @@ def report_markdown(plans: list[Plan]) -> str:
         sections = [
             (f"Imported ({len(plan.imported)})", plan.imported),
             (f"Import errors ({len(plan.errors)})", plan.errors),
-            ("Replaced resolutions", plan.replacements),
+            ("To check in the status list", plan.unconfirmed),
+            ("Replaced and archived resolutions", plan.replacements),
             ("Notes", plan.notes),
             ("Skipped", plan.skipped),
         ]
@@ -545,6 +586,21 @@ def write_reports(root: Path, plans: list[Plan]) -> None:
         error_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     else:
         error_file.unlink(missing_ok=True)
+
+    unconfirmed = [plan for plan in plans if plan.unconfirmed]
+    check_file = dist / "status-check.md"
+    if unconfirmed:
+        lines = [f"# Please check the status list: {', '.join(plan.congress for plan in unconfirmed)}", ""]
+        lines += [f"- {item}" for plan in unconfirmed for item in plan.unconfirmed]
+        lines += [
+            "",
+            f"What to do: download {status_list.FILE}, make the changes described above if they are right, and "
+            "upload it again (Add file → Upload files, same name). The resolutions are then archived automatically. "
+            "Close this issue when done.",
+        ]
+        check_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        check_file.unlink(missing_ok=True)
 
     stubs = [plan.congress_stub for plan in plans if plan.congress_stub]
     congress_file = dist / "new-congress.md"
@@ -594,6 +650,10 @@ def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCE
         "accepted_states": accepted_states,
         "today": today or dt.date.today(),
     }
+    try:
+        ctx["status_list"] = status_list.load(root)
+    except status_list.StatusListError as exc:
+        raise ImportFailure(str(exc)) from None
     groups = find_sources(files, root)
     plans, duplicates = [], []
     known = {str(c.get("id")).lower(): str(c.get("id")) for c in ctx["congresses"]}

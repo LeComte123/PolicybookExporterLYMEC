@@ -7,7 +7,10 @@ Usage: uv run scripts/validate.py [--fix]
 - if A replaces B, then B gets status 'superseded' and superseded_by A (and the other way round:
   B.superseded_by = A adds B to A.replaces);
 - a file whose number was changed is renamed to <number>_<id>.md;
-- an adoption date outside the dates of its congress is set to the last day of the congress.
+- an adoption date outside the dates of its congress is set to the last day of the congress;
+- a resolution marked 'archived' in the status list (resolution_status_list.xlsx) is archived, or
+  superseded if the list names the resolution that replaced it; resolutions in force that are
+  missing from the list get a row.
 Exit code 1 if any problem is left.
 """
 
@@ -18,6 +21,7 @@ import sys
 from pathlib import Path
 
 import pbook
+import status_list
 
 
 class Report:
@@ -311,6 +315,78 @@ def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, repor
         res.save()
 
 
+def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: Report, fix: bool) -> set[str]:
+    """Apply the Bureau's status list: rows marked 'archived' archive the resolution with that number.
+
+    A row with a title only matches a resolution with that title (protects against renumbering
+    mix-ups). A row is already satisfied when a resolution with its number is no longer in force.
+    """
+    try:
+        rows = status_list.load(root)
+    except status_list.StatusListError as exc:
+        report.error(str(exc))
+        return set()
+    if rows is None:
+        return set()
+    name = status_list.FILE
+    numbered = [r for r in resolutions if isinstance(r.meta.get("number"), str)]
+    in_force = {r.number: r for r in numbered if r.meta.get("status") == "in_force"}
+    replaced = {t for r in resolutions for t in r.meta.get("replaces") or [] if isinstance(t, str)}
+    changed = set()
+    for row in rows:
+        if row.status != "archived":
+            continue
+        where = f"{name} row {row.line} ({row.number})"
+        same = [r for r in numbered if r.number == row.number]
+        matching = [r for r in same if not row.title or status_list.titles_match(row.title, str(r.meta.get("title", "")))]
+        if any(r.meta.get("status") != "in_force" for r in matching):
+            continue  # already archived or superseded
+        target = next((r for r in matching if r.meta.get("status") == "in_force"), None)
+        if target is None:
+            if same:
+                report.error(
+                    f"{where}: marked archived with the title \"{row.title}\", but resolution {row.number} is "
+                    f"\"{same[0].meta.get('title')}\". Correct the number or the title in the status list."
+                )
+            else:
+                report.warn(f"{where}: marked archived, but there is no resolution with this number in the database. Check the number.")
+            continue
+        if target.id in replaced:
+            continue  # superseded by the resolution that replaces it (derive_supersessions)
+        replacer = None
+        if row.replaced_by:
+            replacer = in_force.get(row.replaced_by)
+            if replacer is None or replacer is target:
+                report.error(f"{where}: 'Replaced by' {row.replaced_by} is not a resolution in force. Correct the number.")
+                continue
+        result = f"superseded by {row.replaced_by}" if replacer else "archived"
+        if not fix:
+            report.error(f"resolutions/{target.path.name}: the status list marks it as archived. Run validate.py --fix to make it {result}.")
+            continue
+        if replacer:
+            replacer.meta["replaces"] = sorted(set(replacer.meta.get("replaces") or []) | {target.id})
+            changed.add(replacer.id)
+        else:
+            target.meta["status"] = "archived"
+            changed.add(target.id)
+        report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
+
+    listed = {row.number for row in rows}
+    missing = [r for r in in_force.values() if r.number not in listed]
+    if missing and fix:
+        status_list.add_rows(root, sorted(missing, key=lambda r: (int(r.number.split(".")[0]), int(r.number.split(".")[1]))))
+        report.fixed.append(f"{name}: rows added for {', '.join(r.number for r in missing)}")
+    elif missing:
+        report.warn(f"{name}: no row yet for {', '.join(r.number for r in missing)} (validate.py --fix adds them).")
+    for res in numbered:
+        if res.meta.get("status") in ("archived", "superseded") and any(
+            row.number == res.number and row.status == "in force" and (not row.title or status_list.titles_match(row.title, str(res.meta.get("title", ""))))
+            for row in rows
+        ):
+            report.warn(f"resolutions/{res.path.name} is {res.meta['status']}, but the status list says 'in force'. Update the status list.")
+    return changed
+
+
 def validate(root: Path = pbook.ROOT, fix: bool = False) -> Report:
     report = Report()
     categories = check_categories(root, report)
@@ -330,6 +406,7 @@ def validate(root: Path = pbook.ROOT, fix: bool = False) -> Report:
     check_uniques(resolutions, report)
     check_file_names(resolutions, report, fix)
     changed |= check_adoption_dates(resolutions, congresses, report, fix)
+    changed |= check_status_list(root, resolutions, report, fix)
     by_id = {res.id: res for res in resolutions if res.id}
     for rid in changed:
         by_id[rid].save()

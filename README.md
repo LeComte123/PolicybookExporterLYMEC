@@ -9,6 +9,7 @@ Everything is done in your web browser on GitHub. You do not need to install any
 - [Where to find the Policy Book](#where-to-find-the-policy-book)
 - [After a congress: add the new resolutions](#after-a-congress-add-the-new-resolutions)
 - [Add a new congress](#add-a-new-congress)
+- [Archiving resolutions: the status list](#archiving-resolutions-the-status-list)
 - [When something goes wrong](#when-something-goes-wrong)
 - [Correcting a resolution](#correcting-a-resolution)
 - [What is in this repository](#what-is-in-this-repository)
@@ -36,14 +37,19 @@ what changed. Older releases stay available, so you can always find an earlier v
 
 ## After a congress: add the new resolutions
 
-There are five steps. Together they take about 15 minutes.
+There are six steps. Together they take about 20 minutes.
 
 ### 1. Check that the congress is in the list
 
 Open the file `congresses.yml`. If your congress is not listed, add it first, as described in
 [Add a new congress](#add-a-new-congress).
 
-### 2. Export the motions from OpenSlides
+### 2. Record what the congress archived
+
+If the congress archived or replaced resolutions, mark them in the status list first, as described in
+[Archiving resolutions](#archiving-resolutions-the-status-list). If it did not, skip this step.
+
+### 3. Export the motions from OpenSlides
 
 In OpenSlides, open *Motions* and set two filters:
 
@@ -68,7 +74,7 @@ double-check the CSV. Choose exactly these settings:
 
 ![OpenSlides export settings for the PDF file](docs/images/openslides-export-pdf.png)
 
-### 3. Rename the files
+### 4. Rename the files
 
 Name both files after the congress: **year, dash, city in English**. Example for the autumn
 congress 2026 in Vilnius:
@@ -83,7 +89,7 @@ congress 2026 in Vilnius:
 - The name must match the congress in `congresses.yml` (the line `id:`).
 - Two congresses in the same city in one year: add Spring or Autumn, e.g. `2027-Brussels-Spring`.
 
-### 4. Upload the files
+### 5. Upload the files
 
 1. On this page, open the folder **imports**.
 2. Click **Add file** → **Upload files**.
@@ -94,7 +100,7 @@ congress 2026 in Vilnius:
 
 > [Screenshot: the "Commit changes" button]
 
-### 5. Wait, then check
+### 6. Wait, then check
 
 Click the **Actions** tab at the top. Your upload appears there:
 
@@ -110,6 +116,7 @@ When it is done:
 - Each new resolution got the next free Policy Book number in its chapter (e.g. 4.27).
 - Your files moved from *imports* to the folder **imported**, where they are kept for the record.
   Uploading the same file again does nothing.
+- The new resolutions were added to the status list.
 
 
 ## Add a new congress
@@ -144,11 +151,46 @@ the name and the two dates of that entry and click **Commit changes**. The adopt
 new resolutions are then corrected automatically.
 
 
+## Archiving resolutions: the status list
+
+The file **resolution_status_list.xlsx** (on the main page of this repository) lists every Policy
+Book number with its status: *in force*, *archived* or *not used*. The Bureau keeps it up to date.
+It decides which resolutions are archived:
+
+- Every resolution marked **archived** in the list is archived: it leaves the Policy Book and moves to
+  the archive edition.
+- A motion may say in its text that it replaces or archives older resolutions, e.g. "This motion
+  replaces: 6.03 …" or "Archiving Resolutions 6.02, 6.03". This can be at the beginning or at the end
+  of the text. The automation double-checks such a sentence against the list. It only takes effect
+  if the list marks that resolution as archived. If not, an issue "Please check the status list"
+  asks you to confirm it, and the resolution stays in force until you do.
+
+To archive or replace resolutions after a congress:
+
+1. On the main page, open **resolution_status_list.xlsx** and click **Download**. Always take the
+   latest version, because new resolutions are added to it automatically.
+2. In the tab *Resolutions*, for each resolution the congress archived or replaced:
+   - set **Status** to `archived`;
+   - set **Archived at** to the congress, e.g. `2026-Vilnius`;
+   - if it was replaced by a new resolution, write the new resolution's number under
+     **Replaced by**. The new numbers are known after the import, so you can add this later
+     (the issue "Please check the status list" tells you the number).
+3. Save the file, then on the main page click **Add file → Upload files**, drag the file in and
+   click **Commit changes**. It replaces the old version.
+
+A few minutes later the resolutions are archived ("Archived" banner) or superseded ("Superseded by
+…" banner) in the archive edition, and they are no longer in the Policy Book.
+
+Change the **Number** of a row only when that resolution gets a new number: the number says which
+resolution is meant. The **Title** is used to double-check that the number is right. The list is also used once to move the old Policy Book into
+this system; its first tab, *How to fill in*, explains that.
+
+
 ## When something goes wrong
 
 If there is a problem, a message appears under the **Issues** tab. It says what is wrong and what to
 do. You get an email about it if you watch this repository (see
-[One-time setup](#one-time-setup-repository-admin)). There are four kinds:
+[One-time setup](#one-time-setup-repository-admin)). There are five kinds:
 
 **"Import failed: …"**
 : Nothing was imported and the Policy Book online is unchanged. Typical reasons: the file name is
@@ -162,6 +204,12 @@ do. You get an email about it if you watch this repository (see
   lists the motions. Open each one in OpenSlides, create a modified final version that resolves the
   amendments, export again and upload the new file with the same name. Motions that are already in
   the Policy Book are skipped. Close the issue when everything is imported.
+
+**"Please check the status list: …"**
+: A new motion says it replaces or archives a resolution, but the status list does not mark that
+  resolution as archived. If the congress decided it, update the list as described in
+  [Archiving resolutions](#archiving-resolutions-the-status-list); the message says which numbers to
+  enter. If not, nothing needs to be done. Close the issue afterwards.
 
 **"New congress: …"**
 : The upload belonged to a congress that was not in `congresses.yml`. See
@@ -234,32 +282,22 @@ source: openslides
 | `congress` | The congress, as in `congresses.yml`. |
 | `adopted` | Date of adoption, written `2026-10-25`. |
 | `category` | The chapter. The names are listed in `categories.yml`. |
-| `status` | `in_force`, `superseded` (replaced by a newer resolution), `archived` (no longer in force by decision of a congress) or `expired`. Only `in_force` resolutions are in the Policy Book; all are in the archive edition. |
-| `replaces` | Resolutions that this one replaces. |
+| `status` | `in_force`, `superseded` (replaced by a newer resolution), `archived` (no longer in force by decision of a congress) or `expired`. Only `in_force` resolutions are in the Policy Book; all are in the archive edition. Archive resolutions with the [status list](#archiving-resolutions-the-status-list), not here. |
+| `replaces` | Resolutions that this one replaces. Filled in automatically from the status list. |
 | `superseded_by` | Filled in automatically, do not edit. |
-| `amends` | Resolutions that this one changes. |
+| `amends` | Resolutions that this one changes, e.g. `- '6.03'` (the number is replaced by the reference automatically). |
 | `submitted_by`, `co_signers` | Organisations. Never names of people. |
 
 Lists (`replaces`, `amends`, `submitted_by`, `co_signers`) have one entry per line, each starting
 with a dash and a space. An empty list is written `[]`.
 
-**This resolution replaces an older one.** Open the **new** resolution and write the Policy Book
-number of the old one under `replaces`, in quotes. Replace `replaces: []` with:
-
-```yaml
-replaces:
-- '6.03'
-```
-
-After you click *Commit changes*, the number is replaced by the old resolution's reference (e.g.
-`2023-Riga-07`), and the old resolution is marked as superseded and moves to the archive edition.
-`amends` works the same way.
-
-**A resolution is no longer in force, without a replacement.** Change its `status` to `archived`.
+**A resolution was archived or replaced.** Use the [status list](#archiving-resolutions-the-status-list),
+not the resolution file.
 
 **A resolution gets a new number** (for example when the numbers of a chapter are closed up after
 resolutions were archived). Change its `number`. The file is renamed automatically. A number can only
-be used once among the resolutions in force; archived resolutions keep their old number.
+be used once among the resolutions in force; archived resolutions keep their old number. Change the
+number in the status list as well.
 
 **Congress names and dates** are in the file `congresses.yml`. Edit them the same way.
 
@@ -271,6 +309,7 @@ be used once among the resolutions in force; archived resolutions keep their old
 | `imports` | Put new OpenSlides exports here. The subfolder `imports/migration` holds material for moving the old Policy Book into this system once; please leave it alone. |
 | `imported` | Every uploaded export, kept for the record. |
 | `resolutions` | One file per resolution. |
+| `resolution_status_list.xlsx` | The status list: every Policy Book number and whether it is in force or archived. |
 | `congresses.yml` | The list of congresses. |
 | `categories.yml` | The nine chapters of the Policy Book. |
 | `docs` | Pictures for this guide. |

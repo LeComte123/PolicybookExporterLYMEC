@@ -15,6 +15,7 @@ on:
       - "resolutions/**"
       - "congresses.yml"
       - "categories.yml"
+      - "resolution_status_list.xlsx"
       - "templates/**"
       - "assets/**"
       - "scripts/**"
@@ -136,9 +137,9 @@ jobs:
         if: steps.content.outputs.resolutions == 'yes'
         uses: actions/deploy-pages@v5
 
-      - name: Report motions that were not imported, and new congresses
+      - name: Open issues for things the Bureau should check
         run: |
-          for issue in dist/import-errors.md dist/new-congress.md; do
+          for issue in dist/import-errors.md dist/status-check.md dist/new-congress.md; do
             if [ -f "$issue" ]; then scripts/open_issue.sh "$issue"; fi
           done
 
