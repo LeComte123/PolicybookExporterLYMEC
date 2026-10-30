@@ -63,11 +63,11 @@ never put there). Add the organisations to submitted_by / co_signers in the file
 - 9.79 Crime and Punishment - Make Russia Pay For Its War (co-signers)
 - 9.80 A Call for a Lasting Ceasefire in Gaza, Accountability Under International Law, and a Durable Two-State Solution for the People of Israel and Palestine (co-signers)
 
-## Resolutions without any submitting organisation (42)
+## Resolutions without any submitting organisation (40)
 
 The texts do not say who submitted them. Add them to submitted_by in the file, if known.
 
-- 2.09, 2.16, 2.18, 3.01, 3.02, 3.03, 3.04, 3.05, 3.09, 3.10, 4.01, 4.02, 4.06, 4.07, 4.08, 4.09, 4.15, 4.16, 5.01, 5.03, 6.02, 6.03, 6.04, 8.01, 9.01, 9.03, 9.04, 9.05, 9.06, 9.07, 9.08, 9.09, 9.11, 9.12, 9.13, 9.14, 9.15, 9.17, 9.18, 9.19, 9.20, 9.27
+- 2.09, 2.16, 2.18, 3.01, 3.02, 3.03, 3.04, 3.05, 3.09, 3.10, 4.01, 4.02, 4.06, 4.07, 4.08, 4.09, 4.15, 4.16, 5.01, 5.03, 6.04, 8.01, 9.01, 9.03, 9.04, 9.05, 9.06, 9.07, 9.08, 9.09, 9.11, 9.12, 9.13, 9.14, 9.15, 9.17, 9.18, 9.19, 9.20, 9.27
 
 ## Archived resolutions mentioned in texts (0)
 
@@ -77,7 +77,7 @@ number may belong to another resolution). For each, add a line to the status lis
 
 - nothing
 
-## Archived resolutions that need their title (8)
+## Archived resolutions that need their title (6)
 
 Their number is used by another resolution today, so the title is needed to tell them apart. Write it
 in the status list, column Title.
@@ -86,12 +86,10 @@ in the status list, column Title.
 - 2.33 (a resolution on Belarus, archived by 2.38; title not known)
 - 2.34 (a resolution on Belarus, archived by 2.38; title not known)
 - 2.35 (a resolution on Belarus, archived by 2.38; title not known)
-- 6.02 (archived by 6.10 ('Archiving Resolutions 6.02, 6.03, 6.05, 6.09'); title not known)
-- 6.03 (archived by 6.10; title not known)
 - 6.09 (archived by 6.10; title not known)
 - 9.48 (the old 9.48 'Political situation in Venezuela' (Paris 2021), archived and replaced by today's 9.48, which still has the same title in the book: its title is left empty so that today's 9.48 is not archived)
 
-## Archived resolutions without their text (157)
+## Archived resolutions without their text (155)
 
 Marked archived in the status list, but their text is not in the database, so they are not in the
 archive edition yet. Say where the text is (column Full text), e.g. an older edition of the Policy Book.
@@ -188,8 +186,6 @@ archive edition yet. Say where the text is (column Full text), e.g. an older edi
 - 5.07 Effective approach prostitution
 - 5.09 Social Union
 - 5.10 Liberalise the sex industry
-- 6.02 (title not known)
-- 6.03 (title not known)
 - 6.03 Increase security of Nuclear Power in Europe
 - 6.05 (title not known)
 - 6.08 The future is Nuclear
