@@ -60,7 +60,7 @@ jobs:
         with:
           fetch-depth: 0   # history and tags, to compare with the last release
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.0   # this action has no major-version tag (v10), so pin a release
 
       - name: Install Python packages
         run: uv sync --frozen --no-dev
