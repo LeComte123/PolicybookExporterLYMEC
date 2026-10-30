@@ -138,8 +138,9 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
 - Issues: the importer writes their texts, first line `# <title>`: dist/import-failed.md ("Import failed:
   <files>", run fails), dist/import-errors.md ("Import incomplete: <files>", skipped motions; the rest is
   published), dist/status-check.md ("Please check the status list: <congress>") and dist/new-congress.md
-  ("New congress: <id>"). Other failures → "Publishing failed" with
-  the log tail. Without any resolution file the workflow stops after the check (nothing to publish). scripts/open_issue.sh comments on an
+  ("New congress: <id>"). Other failures → "Publishing failed": for the steps
+  check/build it shows the problems from their log; any other failed step (found via toJSON(steps),
+  every step has an id) is reported as technical, to forward to the maintainer. Without any resolution file the workflow stops after the check (nothing to publish). scripts/open_issue.sh comments on an
   open issue with the same title instead of opening a second one.
 - A release (tag policybook-YYYY-MM-DD[-n]; assets: both books + a zip of the per-resolution files) is only
   created when resolutions/, congresses.yml, categories.yml, templates/ or assets/ changed since the last

@@ -50,6 +50,7 @@ jobs:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Install git, GitHub CLI and the Arial font
+        id: install
         run: |
           sed -i 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources
           echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
@@ -58,23 +59,29 @@ jobs:
             git gh ca-certificates fontconfig ttf-mscorefonts-installer > /dev/null
 
       - uses: actions/checkout@v7
+        id: checkout
         with:
           fetch-depth: 0   # history and tags, to compare with the last release
 
       - name: Let git work in the checked-out folder
+        id: safe-directory
         # The folder belongs to the runner's user, not to root in the container: without this, git
         # stops with "dubious ownership" / "not in a git directory".
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - uses: astral-sh/setup-uv@v10.3.0   # this action has no major-version tag (v10), so pin a release
+      - id: uv
+        uses: astral-sh/setup-uv@v10.3.0   # this action has no major-version tag (v10), so pin a release
 
       - name: Install Python packages
+        id: packages
         run: uv sync --frozen --no-dev
 
       - name: Import uploaded OpenSlides exports
+        id: import
         run: uv run scripts/import_openslides.py
 
       - name: Check resolutions
+        id: check
         run: uv run scripts/validate.py --fix 2>&1 | tee "$RUNNER_TEMP/check.log"
 
       - name: Anything to publish?
@@ -87,10 +94,12 @@ jobs:
           fi
 
       - name: Build PDFs, Word files and the download page
+        id: build
         if: steps.content.outputs.resolutions == 'yes'
         run: uv run scripts/build.py 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: Save imported resolutions to main
+        id: save
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -107,6 +116,7 @@ jobs:
           git push origin HEAD:main
 
       - name: Create release
+        id: release
         if: steps.content.outputs.resolutions == 'yes'
         run: |
           last=$(git describe --tags --abbrev=0 --match 'policybook-*' 2>/dev/null || true)
@@ -133,7 +143,8 @@ jobs:
             --title "LYMEC Policy Book, $(date -u '+%-d %B %Y')" --notes-file "$notes" \
             dist/LYMEC_Policy_Book.pdf dist/LYMEC_Policy_Book_Archive.pdf dist/LYMEC_Policy_Book_resolutions.zip
 
-      - uses: actions/upload-pages-artifact@v5
+      - id: pages
+        uses: actions/upload-pages-artifact@v5
         if: steps.content.outputs.resolutions == 'yes'
         with:
           path: site
@@ -150,19 +161,47 @@ jobs:
 
       - name: Open an issue if something went wrong
         if: failure()
+        env:
+          STEPS: ${{ toJSON(steps) }}
         run: |
+          failed=$(python3 -c 'import json, os; steps = json.loads(os.environ["STEPS"]); print(next((k for k, v in steps.items() if v["outcome"] == "failure"), "unknown"))')
           issue=dist/import-failed.md   # written by the importer when an upload could not be imported
           if [ ! -f "$issue" ]; then
             issue=$RUNNER_TEMP/issue.md
-            {
-              echo "# Publishing failed"
-              echo
-              echo "The Policy Book could not be published. The messages below say what is wrong and what to do."
-              echo "If they point to a resolution file, correct it in the GitHub editor; saving it starts a new run."
-              echo
-              echo '```'
-              tail -n 40 "$RUNNER_TEMP/check.log" "$RUNNER_TEMP/build.log" 2> /dev/null || echo "See the log of the run."
-              echo '```'
-            } > "$issue"
+            case "$failed" in
+              check | build)
+                if [ "$failed" = check ]; then what="the check of the resolutions"; else what="building the PDFs"; fi
+                {
+                  echo "# Publishing failed"
+                  echo
+                  echo "The Policy Book could not be published: $what found a problem. The messages below say what is wrong"
+                  echo "and what to do. If they point to a resolution file, the status list or congresses.yml, correct it in the"
+                  echo "GitHub editor; saving it starts a new run."
+                  echo
+                  echo '```'
+                  log=$RUNNER_TEMP/$failed.log
+                  if grep -q "problem(s) found" "$log" 2> /dev/null; then
+                    sed -n '/problem(s) found/,$p' "$log"   # only the problems, not the warnings
+                  else
+                    tail -n 40 "$log" 2> /dev/null || echo "See the log of the run."
+                  fi
+                  echo '```'
+                } > "$issue"
+                ;;
+              *)
+                {
+                  echo "# Publishing failed"
+                  echo
+                  echo "The Policy Book could not be published because a technical step of the automation failed (step: $failed)."
+                  echo "This is not a problem with the resolutions or the uploads. Please forward this issue to the person who"
+                  echo "maintains this repository."
+                  echo
+                  case "$failed" in
+                    release | pages | deployment) echo "The new resolutions were saved, but the Policy Book online was not updated." ;;
+                    *) echo "Nothing was changed or published." ;;
+                  esac
+                } > "$issue"
+                ;;
+            esac
           fi
           scripts/open_issue.sh "$issue"

@@ -252,8 +252,10 @@ do. You get an email about it if you watch this repository (see
   [If you forget this](#add-a-new-congress).
 
 **"Publishing failed"**
-: Something in a resolution file is not right, often after a correction by hand. The message names
-  the file and what to change.
+: Either something in a resolution file, the status list or `congresses.yml` is not right, often
+  after a correction by hand: the message names the file and what to change. Or a technical step
+  of the automation failed: the message says so. Then forward the issue to whoever maintains this
+  repository; there is nothing to correct in the files.
 
 If the same problem happens again, it is added as a comment to the open issue instead of a new issue.
 
