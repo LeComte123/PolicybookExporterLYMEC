@@ -2,16 +2,17 @@
 
 Accepted OpenSlides motions → one Markdown file per resolution (git is the database) → per-resolution
 PDF/DOCX + `LYMEC_Policy_Book.pdf` (in force) + `LYMEC_Policy_Book_Archive.pdf` (everything).
-Full spec: `build_instructions/SPEC.md`. Where this file deviates from SPEC.md, this file wins
-(the deviations come from the real OpenSlides export, see "Decisions").
+Non-technical users only work in the GitHub web interface (upload, edit a file, read issues): no pull
+requests, no review step, no local tools. This file is the specification; the original SPEC.md and
+kickoff prompt (until commit 4226044, folder build_instructions/) are only in the git history.
 
 ## Working mode
-- Implement ONE phase at a time (phases 2–6 in SPEC/plan). After each phase: run tests, show what
-  changed, list open questions, then stop until the user says "next".
+- Implement ONE phase at a time (phases 2–5 are done; phase 6, the migration, is left). After each
+  phase: run tests, show what changed, list open questions, then stop until the user says "next".
 - Python via uv only. Keep it simple: no frameworks beyond the stack below. English code comments.
   No secrets in the repo. Every user-facing error message says what to do next.
 - README.md is the guide for non-technical Bureau/Secretariat users (plain language, no jargon,
-  screenshot placeholders); it replaces SPEC's USER_GUIDE.md. Keep it up to date with every
+  screenshot placeholders). Keep it up to date with every
   user-visible change. Developer notes live in this file.
 - Same input → same output (sorted iteration, no timestamps in resolution files).
 - Never change wording from the sources (motion texts, titles, organisation names, chapter titles),
@@ -84,7 +85,7 @@ source: openslides         # openslides | migration
 Resolution text in Markdown (without the Submitted by / Co-signed by lines; they live in the header).
 ```
 
-## Decisions (deviations from SPEC.md)
+## Decisions (where the original spec was changed: by the real OpenSlides export or by the user)
 - The OpenSlides CSV contains the full motion text as HTML → **CSV is the primary text source**
   (HTML→Markdown via pandoc). The PDF is cross-checked against the CSV (numbers + titles); the
   pymupdf parser is only a fallback for PDF-only uploads.
@@ -92,7 +93,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   imported**; they are reported as import errors with the motion number and the `data-identifier`s and
   the fix: "Several amendments change the same line. Open the motion in OpenSlides, create a modified
   final version that resolves them, and export again." The other motions in the file are imported.
-- Congress ids use the city name, not SPEC's IATA code: `2026-Vilnius` (user's decision). The importer
+- Congress ids use the city name, not an IATA code as first planned: `2026-Vilnius` (user's decision). The importer
   normalises file names (case, accents, spaces: "2027 kraków.csv" → 2027-Krakow) and matches existing
   congress ids case-insensitively.
 - Ids `2026-Vilnius-18` (congress + OpenSlides motion number) are stable and used in all references;
@@ -122,7 +123,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
     where the "Adopted at" line could be read). The congresses read from the book are in congresses.yml
     (comments mark uncertain data; Spring and Autumn 2025 are still missing; Autumn 2024 = Warsaw, from a
     "prior to Warsaw, Autumn 2024" note in the book).
-- Status `archived` replaces SPEC's `repealed` (LYMEC's word, shown as "Archived").
+- Status `archived` replaces the planned `repealed` (LYMEC's word, shown as "Archived").
 - A congress missing from congresses.yml gets a placeholder entry (city from the id, upload day as
   dates) and a "New congress" issue; when the real dates are entered, validate --fix moves the
   adoption dates of its resolutions into the congress dates (last day).
@@ -130,7 +131,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   typos like "Chatper 3").
 - Uploads are never deleted: after an import they move from imports/ to imported/<YYYY-MM-DD-HH-MM>_<congress>/
   (user's decision). A file whose content is already anywhere in imported/ is not imported again (replaces
-  SPEC's imports/processed.yml).
+  the planned imports/processed.yml).
 - Submitters: organisations only, structured as `submitted_by` + `co_signers` (parsed from the
   "Submitted by:/Co-submitted by:/Co-signed by:" paragraphs; fallback: org in parentheses of the CSV
   Submitters column).
@@ -159,6 +160,11 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
 ```
 
 ## Build notes
+- The Policy Book is ONE combined pandoc document (never merged PDFs): cover with build date, table of
+  contents, chapters in categories.yml order with resolutions sorted by number, an index by congress
+  with page numbers, clickable cross-references (replaces/superseded by/amends), PDF bookmarks. The
+  archive edition adds resolutions no longer in force, each with a status banner. site/index.html:
+  all downloads, a search box (plain JS), the build date.
 - Resolution bodies are GitHub Markdown; build.py converts them to pandoc Markdown (-smart) and
   combines them with generated parts (raw LaTeX blocks for labels, banners, index).
 - PDFs: xelatex, KOMA-Script (scrartcl/scrreprt), Arial with Ligatures=TeXOff so text prints
@@ -172,6 +178,7 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
 - Inputs: imports/migration/<Vienna book>.docx (pandoc docx → gfm, split at the "X.YY Title" headings)
   + resolution_status_list.csv (statuses, archived resolutions) + congresses.yml + the Vienna PDF for
   cross-checks. Run once, locally; the result is reviewed, then committed (the push publishes it).
+- Fields that cannot be derived are left empty and listed in a migration report.
 - Ids of migrated resolutions: <congress>-<number at migration>, e.g. 2018-Berlin-6.08 (no OpenSlides
   number); `source: migration`.
 - Afterwards (agreed): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and delete the one-time
