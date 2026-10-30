@@ -58,7 +58,7 @@ class Context:
             for target in res.meta.get("amends") or []:
                 self.amended_by.setdefault(target, []).append(res.id)
         self.templates = root / "templates"
-        self.logo = root / "assets" / "lymec_logo.png"
+        self.logo = root / "docs" / "images" / "lymec_logo.png"
         self.dist = root / "dist"
 
 

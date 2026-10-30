@@ -352,7 +352,7 @@ number in the status list as well.
 | `resolution_status_list.csv` | The status list: every Policy Book number and whether it is in force or archived. |
 | `congresses.yml` | The list of congresses since 1992. |
 | `categories.yml` | The nine chapters of the Policy Book. |
-| `docs` | Pictures for this guide. |
+| `docs` | Pictures: the LYMEC logo used in the Policy Book, and the screenshots for this guide. |
 | everything else | The technical parts. Notes for developers are in `CLAUDE.md`. |
 
 

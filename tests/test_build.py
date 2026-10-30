@@ -28,7 +28,7 @@ def make_repo(root):
         "- id: 2019-Brussels\n  name: LYMEC Spring Congress 2019\n  city: Brussels\n  date_start: 2019-04-06\n  date_end: 2019-04-06\n"
         "- id: 2026-Vilnius\n  name: LYMEC Autumn Congress 2026\n  city: Vilnius\n  date_start: 2026-10-23\n  date_end: 2026-10-25\n"
     )
-    for name in ("templates", "assets"):
+    for name in ("templates", "docs"):
         (root / name).symlink_to(pbook.ROOT / name)
     (root / "imports").mkdir()
     for suffix in (".csv", ".pdf"):

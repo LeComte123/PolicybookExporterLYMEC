@@ -51,13 +51,12 @@ imported/<YYYY-MM-DD-HH-MM>_<congress>/  every imported upload, kept for the rec
                           per import, time of the import in Brussels time (Europe/Brussels; tzdata), _2 within one minute
 templates/                resolution.tex, policybook.tex (pandoc templates), lymec.latex (shared look),
                           reference.docx (Word styles, made by scripts/make_reference_docx.py)
-assets/                   lymec_logo.png
 scripts/                  pbook.py (shared helpers), validate.py, import_openslides.py,
                           openslides_pdf.py (PDF reader for the importer), build.py,
                           status_list.py (reads/extends resolution_status_list.csv),
                           open_issue.sh (workflow: open or comment a GitHub issue)
 .github/workflows/        publish.yml
-docs/images/              screenshots for README.md
+docs/images/              lymec_logo.png (PDFs, Word files, download page) and the screenshots for README.md
 tests/                    pytest (conftest.py: make_status_list fixture); tests/fixtures/2026-Vilnius.csv|pdf = real OpenSlides export (autumn 2026;
                           motions 08/12/18 have colliding amendments), colliding.csv = small conflict fixture
 dist/                     build output (git-ignored)
@@ -145,7 +144,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   every step has an id) is reported as technical, to forward to the maintainer. Without any resolution file the workflow stops after the check (nothing to publish). scripts/open_issue.sh comments on an
   open issue with the same title instead of opening a second one.
 - A release (tag policybook-YYYY-MM-DD[-n]; assets: both books + a zip of the per-resolution files) is only
-  created when resolutions/, congresses.yml, categories.yml, templates/ or assets/ changed since the last
+  created when resolutions/, congresses.yml, categories.yml, templates/ or the logo changed since the last
   release tag. Notes = import report + list of changed resolution files. Pages are deployed on every run.
 
 ## Commands

@@ -17,7 +17,7 @@ on:
       - "categories.yml"
       - "resolution_status_list.csv"
       - "templates/**"
-      - "assets/**"
+      - "docs/images/lymec_logo.png"
       - "scripts/**"
       - ".github/workflows/publish.yml"
   workflow_dispatch:
@@ -120,7 +120,7 @@ jobs:
         if: steps.content.outputs.resolutions == 'yes'
         run: |
           last=$(git describe --tags --abbrev=0 --match 'policybook-*' 2>/dev/null || true)
-          if [ -n "$last" ] && git diff --quiet "$last" HEAD -- resolutions congresses.yml categories.yml templates assets; then
+          if [ -n "$last" ] && git diff --quiet "$last" HEAD -- resolutions congresses.yml categories.yml templates docs/images/lymec_logo.png; then
             echo "Nothing changed since release $last: no new release."
             exit 0
           fi
