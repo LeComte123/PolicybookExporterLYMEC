@@ -1,0 +1,33 @@
+% LYMEC look shared by resolution.tex and policybook.tex (pandoc partial).
+% Fonts come from assets/fonts so local and CI builds look the same. Ligatures=TeXOff prints the text
+% exactly as written: TeX would otherwise turn every straight " into a closing quote.
+\setmainfont{FiraSans}[
+  Path=$fontdir$/, Extension=.otf, Ligatures=TeXOff,
+  UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic]
+\setsansfont{FiraSans}[
+  Path=$fontdir$/, Extension=.otf, Ligatures=TeXOff,
+  UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic]
+
+% Colours of the LYMEC logo
+\definecolor{lymecblue}{HTML}{20A8E0}
+\definecolor{lymecpink}{HTML}{E80088}
+\definecolor{lymecviolet}{HTML}{5A5FB5}
+\definecolor{lymecgrey}{HTML}{5F6368}
+
+\usepackage{graphicx}
+\usepackage{array}
+\addtokomafont{disposition}{\color{lymecviolet}}
+\setkomafont{descriptionlabel}{\bfseries}
+
+% Metadata lines under a resolution title
+\newenvironment{resmeta}{\par\small\color{lymecgrey}\setlength{\parskip}{1pt}}{\par\medskip}
+
+% Coloured banner for resolutions that are no longer in force
+\newsavebox{\bannerbox}
+\newenvironment{statusbanner}{%
+  \par\noindent\begin{lrbox}{\bannerbox}%
+  \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}\color{white}\bfseries\setlength{\parskip}{0pt}}{%
+  \end{minipage}\end{lrbox}%
+  \colorbox{lymecpink}{\usebox{\bannerbox}}\par\medskip}
+
+\newcommand{\lymecrule}{\par\noindent{\color{lymecblue}\rule{\linewidth}{1.2pt}}\par\medskip}

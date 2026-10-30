@@ -10,6 +10,9 @@ Full spec: `claude_instructions/SPEC.md`. Where this file deviates from SPEC.md,
   changed, list open questions, then stop until the user says "next".
 - Python via uv only. Keep it simple: no frameworks beyond the stack below. English code comments.
   No secrets in the repo. Every user-facing error message says what to do next.
+- README.md is the guide for non-technical Bureau/Secretariat users (plain language, no jargon,
+  screenshot placeholders); it replaces SPEC's USER_GUIDE.md. Keep it up to date with every
+  user-visible change. Developer notes live in this file.
 - Same input → same output (sorted iteration, no timestamps in resolution files).
 - Never change wording from the sources (motion texts, titles, organisation names, chapter titles),
   not even typos. Only structure is converted (HTML → Markdown, agenda prefix "5. " removed from titles,
@@ -38,14 +41,15 @@ congresses.yml            congress metadata {id, name, city, date_start, date_en
 categories.yml            the 9 Policy Book chapters {id, chapter, title, order, last_number}
 imports/                  upload inbox: <congress>.csv (+ <congress>.pdf)
 imported/                every imported upload, kept for the record (never deleted; same name again -> _2, _3)
-templates/                resolution.tex, policybook.tex, reference.docx
+templates/                resolution.tex, policybook.tex (pandoc templates), lymec.latex (shared look),
+                          reference.docx (Word styles, made by scripts/make_reference_docx.py)
 assets/                   lymec_logo.png, fonts/
 scripts/                  pbook.py (shared helpers), validate.py, import_openslides.py,
                           openslides_pdf.py (PDF reader for the importer), build.py
 tests/                    pytest; tests/fixtures/2026-VNO.csv|pdf = real OpenSlides export (Vilnius, autumn 2026;
                           motions 08/12/18 have colliding amendments), colliding.csv = small conflict fixture
 dist/                     build output (git-ignored)
-site/                     generated download page
+site/                     generated download page + all files, ready for GitHub Pages (git-ignored)
 input/                    local scratch inputs (git-ignored)
 ```
 
@@ -95,5 +99,17 @@ uv sync                                          # install deps
 uv run pytest                                    # tests
 uv run scripts/validate.py [--fix]               # check resolutions/, congresses.yml, categories.yml
 uv run scripts/import_openslides.py [files] [--force]
-uv run scripts/build.py [--only <id>] [--edition current|archive|all]
+uv run scripts/build.py [--only <id>] [--edition current|archive|all] [--date YYYY-MM-DD]
+                        # no options: everything; --only: one resolution; --edition: only that book
+uv run scripts/make_reference_docx.py            # regenerate templates/reference.docx
 ```
+
+## Build notes
+- Resolution bodies are GitHub Markdown; build.py converts them to pandoc Markdown (-smart) and
+  combines them with generated parts (raw LaTeX blocks for labels, banners, index).
+- PDFs: xelatex, KOMA-Script (scrartcl/scrreprt), Fira Sans with Ligatures=TeXOff so text prints
+  exactly as written. Templates reuse pandoc's partials ($common.latex()$ etc.), so CI must use a
+  pandoc version with the same partials (local: 3.13).
+- DOCX: Arial (Fira Sans is not installed on most computers), LYMEC violet headings.
+- PDF creation date = build date (SOURCE_DATE_EPOCH); PDFs are not byte-identical between builds
+  (xdvipdfmx uses random font subset tags), DOCX files are.

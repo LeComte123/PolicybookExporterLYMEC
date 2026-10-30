@@ -1,0 +1,59 @@
+$-- Pandoc template for one resolution (PDF). Variables are prepared by scripts/build.py.
+$passoptions.latex()$
+\documentclass[a4paper,11pt]{scrartcl}
+\usepackage{xcolor}
+\usepackage[a4paper,top=2.2cm,bottom=2.6cm,left=2.4cm,right=2.4cm,footskip=1.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen}
+$fonts.latex()$
+$font-settings.latex()$
+$common.latex()$
+$lymec.latex()$
+\usepackage[headsepline=false]{scrlayer-scrpage}
+\clearpairofpagestyles
+\ifoot*{\small\color{lymecgrey}LYMEC Policy Book \textbar{} $number$}
+\ofoot*{\small\color{lymecgrey}\pagemark}
+\pagestyle{scrheadings}
+$after-header-includes.latex()$
+$hypersetup.latex()$
+
+\begin{document}
+\noindent\includegraphics[height=1.9cm]{$logo$}\hfill
+\raisebox{1.4cm}{\small\color{lymecgrey}LYMEC Policy Book}\par
+\vspace{1.2em}
+{\sffamily\bfseries\Large\color{lymecviolet}$number$\quad $restitle$\par}
+\vspace{0.8em}
+{\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}>{\leavevmode\color{lymecgrey}}p{2.9cm}p{\dimexpr\linewidth-2.9cm-2\tabcolsep\relax}@{}}
+Adopted & $adopted$ \\
+Chapter & $chapter$ \\
+Status & $status$ \\
+$if(submitted_by)$
+Submitted by & $for(submitted_by)$$submitted_by$$sep$, $endfor$ \\
+$endif$
+$if(co_signers)$
+Co-signers & $for(co_signers)$$co_signers$$sep$, $endfor$ \\
+$endif$
+$if(replaces)$
+Replaces & $replaces$ \\
+$endif$
+$if(amends)$
+Amends & $amends$ \\
+$endif$
+$if(amendedby)$
+Amended by & $amendedby$ \\
+$endif$
+Reference & $id$ \\
+\end{tabular}\par}
+\medskip
+$if(banner)$
+\begin{statusbanner}
+$banner$
+\end{statusbanner}
+$endif$
+\lymecrule
+
+$body$
+
+\end{document}
