@@ -213,7 +213,8 @@ than the web editor.
 
 - Lines with **in force** come from the Vienna 2026 Policy Book. Check **Adopted at** (the congress);
   it was read from the column **Vienna 2026 book says**. Where it is empty, the book does not say:
-  fill it in.
+  fill it in. The resolution then gets the congress automatically; until then its PDF says "Congress
+  not known". The file `imports/migration/migration_report.md` lists these resolutions.
 - Lines with an **empty Status** are numbers missing from the Vienna book. Write `archived` if a
   resolution with this number was archived, or `not used` if the number was never given. For
   archived ones, fill in what is known: Archived at, Replaced by, Title, Adopted at, Adopted on
@@ -276,6 +277,10 @@ Book number, so the folder is sorted like the Policy Book:
 - `4.27`: the Policy Book number
 - `2026-Vilnius-16`: the congress and the motion number in OpenSlides. This part never changes, even
   if the resolution gets a new Policy Book number. It is shown as "Reference" in the PDF.
+
+Resolutions from the old Policy Book are named like `1.33_PB2026-1.33.md`: their reference is their
+number in the Vienna 2026 Policy Book ("PB2026"). Their texts were taken over word for word, including
+the lines about movers, adoption and former numbers.
 
 To change a resolution:
 

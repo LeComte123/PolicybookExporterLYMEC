@@ -46,6 +46,7 @@ class Row:
     archived_at: str
     replaced_by: str
     title: str
+    adopted_at: str = ""
 
 
 def path(root: Path) -> Path:
@@ -100,6 +101,7 @@ def rows_of(records: list[dict]) -> list[Row]:
             archived_at=rec.get("Archived at", ""),
             replaced_by=clean_number(rec.get("Replaced by", "")),
             title=rec.get("Title", ""),
+            adopted_at=rec.get("Adopted at", ""),
         )
         for line, rec in enumerate(records, start=2)
     ]

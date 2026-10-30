@@ -81,7 +81,12 @@ def format_date(value) -> str:
     return f"{date.day} {date:%B %Y}" if date else ""
 
 
-def congress_name(ctx: Context, cid: str) -> str:
+UNKNOWN_CONGRESS = "Congress not known"
+
+
+def congress_name(ctx: Context, cid: str | None) -> str:
+    if not cid:
+        return UNKNOWN_CONGRESS  # some resolutions of the old Policy Book (until the Bureau fills it in)
     con = ctx.congresses.get(str(cid), {})
     name, city = con.get("name") or str(cid), con.get("city")
     return f"{name}, {city}" if city and city not in name else name
@@ -116,7 +121,7 @@ def facts(ctx: Context, res: pbook.Resolution, linked: set[str]) -> list[tuple[s
     meta = res.meta
     category = ctx.categories[meta["category"]]
     rows = [
-        ("Adopted", md_escape(f"{congress_name(ctx, meta['congress'])}, {format_date(meta['adopted'])}")),
+        ("Adopted", md_escape(", ".join(x for x in (congress_name(ctx, meta.get("congress")), format_date(meta.get("adopted"))) if x))),
         ("Chapter", md_escape(f"Chapter {category['chapter']} – {category['title']}")),
         ("Status", STATUS_LABELS[meta["status"]]),
         ("Submitted by", ", ".join(md_escape(o) for o in meta.get("submitted_by") or [])),
@@ -240,9 +245,11 @@ def edition_markdown(ctx: Context, edition: str, bodies: dict[str, str]) -> str:
     parts.append("# Index by congress {#index-by-congress}")
     by_congress: dict[str, list[pbook.Resolution]] = {}
     for res in included:
-        by_congress.setdefault(str(res.meta["congress"]), []).append(res)
+        by_congress.setdefault(str(res.meta.get("congress") or ""), []).append(res)
 
     def congress_key(cid: str) -> tuple:
+        if not cid:
+            return (dt.date.max, "")  # congress not known: last
         con = ctx.congresses.get(cid, {})
         date = pbook.parse_date(con.get("date_end")) or pbook.parse_date(con.get("date_start")) or dt.date(int(cid[:4]), 1, 1)
         return (date, cid)
@@ -250,7 +257,8 @@ def edition_markdown(ctx: Context, edition: str, bodies: dict[str, str]) -> str:
     for cid in sorted(by_congress, key=congress_key):
         con = ctx.congresses.get(cid, {})
         dates = format_date(con.get("date_end")) if con.get("date_end") else cid[:4]
-        parts.append(f"## {md_escape(congress_name(ctx, cid))} ({md_escape(dates)}) {{.unnumbered .unlisted}}")
+        heading = f"{congress_name(ctx, cid)} ({dates})" if cid else UNKNOWN_CONGRESS
+        parts.append(f"## {md_escape(heading)} {{.unnumbered .unlisted}}")
         entries = []
         for res in by_congress[cid]:
             status = "" if res.meta["status"] == "in_force" else f" ({STATUS_LABELS[res.meta['status']].lower()})"
@@ -264,7 +272,12 @@ def build_edition(ctx: Context, edition: str, bodies: dict[str, str]) -> Path:
     included = [r for r in ctx.resolutions if in_edition(r, edition)]
     if not included:
         raise BuildError(f"There are no resolutions for the {edition} edition yet. Import or add resolutions first.")
-    years = sorted(pbook.parse_date(r.meta["adopted"]).year for r in included)
+    # year of adoption, or of the congress; resolutions of the old Policy Book may know neither yet
+    years = sorted(
+        date.year if (date := pbook.parse_date(r.meta.get("adopted"))) else int(str(r.meta["congress"])[:4])
+        for r in included
+        if r.meta.get("adopted") or r.meta.get("congress")
+    ) or [ctx.build_date.year]
     meta = {
         "title": f"LYMEC Policy Book – {subtitle}",
         "edition": subtitle,
@@ -302,7 +315,7 @@ def build_site(ctx: Context) -> None:
         rows.append(
             f'<tr{css}><td>{html.escape(meta["number"])}</td>'
             f"<td>{html.escape(meta['title'])}</td><td>{category['chapter']}</td>"
-            f"<td>{html.escape(congress_name(ctx, meta['congress']))}</td><td>{STATUS_LABELS[meta['status']]}</td>"
+            f"<td>{html.escape(congress_name(ctx, meta.get('congress')))}</td><td>{STATUS_LABELS[meta['status']]}</td>"
             f'<td><a href="resolutions/{res.path.stem}.pdf">PDF</a> · <a href="resolutions/{res.path.stem}.docx">Word</a></td></tr>'
         )
     page = SITE_TEMPLATE.format(

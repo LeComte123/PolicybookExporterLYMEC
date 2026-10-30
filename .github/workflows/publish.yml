@@ -49,14 +49,14 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - name: Install git, GitHub CLI and the Arial font
+      - name: Install git, GitHub CLI and the fonts
         id: install
         run: |
           sed -i 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources
           echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-            git gh ca-certificates fontconfig ttf-mscorefonts-installer > /dev/null
+            git gh ca-certificates fontconfig ttf-mscorefonts-installer fonts-liberation2 > /dev/null
 
       - uses: actions/checkout@v7
         id: checkout

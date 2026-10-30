@@ -33,6 +33,9 @@ FIELD_ORDER = (
     "source",
 )
 REQUIRED_FIELDS = ("id", "number", "title", "congress", "adopted", "category", "status", "source")
+# Resolutions migrated from the old Policy Book may not know their congress yet (filled in later).
+UNKNOWN_ALLOWED_FOR_MIGRATION = ("congress", "adopted")
+MIGRATION_ID_PREFIX = "PB2026-"  # migrated ids: PB2026-<number in the Vienna 2026 Policy Book>
 LIST_FIELDS = ("replaces", "amends", "submitted_by", "co_signers")
 
 NUMBER_RE = re.compile(r"^(\d)\.(\d{2,3})$")

@@ -330,3 +330,19 @@ def test_status_list_saved_by_excel_is_repaired(repo):
     assert [line.split(",")[:2] for line in lines[1:]] == [["6.10", "not used"], ["6.21", "in force"], ["6.22", "in force"]]
     assert lines[3].endswith(",Café")
     assert validate.validate(repo, fix=True).fixed == []  # already in the standard form
+
+
+def test_archived_line_without_title_next_to_a_line_in_force_is_refused(repo, make_status_list):
+    """An old resolution once had 6.21; today another one has it. Without a title the wrong one would be archived."""
+    make_status_list(repo, [("6.21", "", "in force"), ("6.21", "", "archived"), ("6.22", "", "in force")])
+    assert any("another line says 6.21 is in force. Add the title" in e for e in errors(repo, fix=True))
+    assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
+
+
+def test_migrated_resolution_may_have_no_congress_yet(repo):
+    meta = make_meta("PB2026-6.05", "6.05", congress=None, adopted=None, source="migration")
+    del meta["openslides_number"]
+    add(repo, meta)
+    report = validate.validate(repo)
+    assert report.errors == []
+    assert any("PB2026-6.05.md: the congress is not known yet" in w for w in report.warnings)

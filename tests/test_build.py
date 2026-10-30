@@ -16,6 +16,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 CLEAN = ["3.32_2026-Vilnius-05", "4.26_2026-Vilnius-06", "1.40_2026-Vilnius-11", "4.27_2026-Vilnius-16", "4.28_2026-Vilnius-20"]
+MIGRATED = "2.09_PB2026-2.09"  # from the old Policy Book, congress not known yet
 OLD_ID = "2019-Brussels-90"
 OLD_FILE = f"4.05_{OLD_ID}"
 OLD_TITLE = 'Bank Reform: 100% "Fair" & #Open_Markets for $5 {now}'  # characters LaTeX and Markdown treat specially
@@ -40,6 +41,12 @@ def make_repo(root):
         "submitted_by": ["JOVD_NL & Co"], "co_signers": [], "source": "migration",
     }  # fmt: skip
     pbook.write_resolution(pbook.resolution_path(root, meta), meta, "Old text with **bold**.\n\n- one\n- two")
+    migrated = {
+        "id": "PB2026-2.09", "number": "2.09", "title": "A Uniform ID Card", "congress": None, "adopted": None,
+        "category": "justice", "status": "in_force", "replaces": [], "superseded_by": None, "amends": [],
+        "submitted_by": [], "co_signers": [], "source": "migration",
+    }  # fmt: skip
+    pbook.write_resolution(pbook.resolution_path(root, migrated), migrated, "From the old Policy Book; Timișoara.")
     assert validate.validate(root, fix=True).errors == []  # marks it superseded by 2026-Vilnius-16
 
 
@@ -60,7 +67,7 @@ def flat(text):
 
 
 def test_all_files_are_built(built):
-    for stem in CLEAN + [OLD_FILE]:  # downloads are named like the resolution files
+    for stem in CLEAN + [OLD_FILE, MIGRATED]:  # downloads are named like the resolution files
         for ext in ("pdf", "docx"):
             assert (built / "dist" / "resolutions" / f"{stem}.{ext}").stat().st_size > 1000
             assert (built / "site" / "resolutions" / f"{stem}.{ext}").exists()
@@ -77,6 +84,7 @@ def test_current_edition_has_only_resolutions_in_force(built):
     entries = resolution_entries(built / "dist" / "LYMEC_Policy_Book.pdf")
     assert entries == [
         "1.40 No Union without values: defending the Rule of Law in the EU",
+        "2.09 A Uniform ID Card",
         "3.32 Let Bulls Smell Flowers, Not Blood: A Call to Ban Bullfighting",
         "4.26 Together We Spend, United We Ball - More EU Defense Joint Venture Projects!",
         "4.27 Deregulate to Liberate: Making Life Affordable Again in Europe",
@@ -92,7 +100,7 @@ def test_current_edition_has_only_resolutions_in_force(built):
 def test_archive_edition_has_everything_with_a_banner(built):
     path = built / "dist" / "LYMEC_Policy_Book_Archive.pdf"
     entries = resolution_entries(path)
-    assert len(entries) == 6
+    assert len(entries) == 7
     assert f"4.05 {OLD_TITLE}" in entries  # special characters survive Markdown and LaTeX
     text = flat(text_of(path))
     assert "Superseded by 4.27 Deregulate to Liberate: Making Life Affordable Again in Europe." in text
@@ -140,7 +148,8 @@ def test_single_resolution_docx(built):
 def test_download_page(built):
     page = (built / "site" / "index.html").read_text()
     assert "Last updated: 29 October 2026" in page
-    assert page.count("<tr") == 7  # header + 6 resolutions
+    assert page.count("<tr") == 8  # header + 7 resolutions
+    assert "<td>Congress not known</td>" in page
     assert '<tr class="archived"><td>4.05</td>' in page
     assert "Bank Reform: 100% &quot;Fair&quot; &amp; #Open_Markets" in page
     assert 'href="resolutions/3.32_2026-Vilnius-05.pdf"' in page and 'href="LYMEC_Policy_Book_Archive.pdf"' in page
@@ -162,3 +171,12 @@ def test_unknown_id_and_invalid_data_stop_the_build(tmp_path):
     pbook.write_resolution(tmp_path / "resolutions" / "2026-Vilnius-01.md", meta, "Text.")
     with pytest.raises(build.BuildError, match="category 'digital' does not exist"):
         build.run(tmp_path)
+
+
+def test_resolution_with_unknown_congress(built):
+    text = flat(text_of(built / "dist" / "resolutions" / f"{MIGRATED}.pdf"))
+    assert "Adopted Congress not known" in text and "Reference PB2026-2.09" in text
+    assert "Timișoara" in text  # the letter with comma below is printed (on GitHub from Liberation Sans)
+    lines = text_of(built / "dist" / "LYMEC_Policy_Book.pdf").splitlines()
+    index = lines[lines.index("Index by congress"):]
+    assert index.index("Congress not known") > index.index("LYMEC Autumn Congress 2026, Vilnius (25 October 2026)")

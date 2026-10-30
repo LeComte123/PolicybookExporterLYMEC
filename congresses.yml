@@ -3,8 +3,9 @@
 #
 # The congresses up to 2026-Vienna were read from the 'Adopted at ...' lines of the Vienna 2026 Policy Book
 # for the migration of the old Policy Book. Please check them; comments say what is uncertain.
-# Missing: the congresses of Spring 2025 and Autumn 2025 (the book only says 'Passed Spring 2025' /
-# 'Passed Autumn 2025'). Add them with their city and dates, e.g. 2025-<City>.
+# Added for the migration: 2009-Rome, 2010-Ljubljana and 2014-Berlin (named in resolution texts),
+# 2025-Zagreb and 2025-Bratislava (ALDE Party event listings). Still missing: the dates of 2024-Warsaw and
+# 2026-Vienna.
 
 - id: 1992-Paris
   name: LYMEC Congress 1992
@@ -51,11 +52,21 @@
   city: Brussels
   date_start: 2008-11-21
   date_end: 2008-11-22
+- id: 2009-Rome
+  name: LYMEC Congress 2009
+  city: Rome
+  date_start: 2009-05-08  # from the text of 3.05: 'assembled in Rome from 8th till 10th of May 2009'
+  date_end: 2009-05-10
 - id: 2010-Sinaia
   name: LYMEC Congress 2010
   city: Sinaia
   date_start: 2010-04-30
   date_end: 2010-05-01
+- id: 2010-Ljubljana
+  name: LYMEC Autumn Congress 2010
+  city: Ljubljana
+  date_start: 2010-11-26  # from the text of 9.07: 'Ljubljana (Slovenia), November 26-28, 2010'
+  date_end: 2010-11-28
 - id: 2011-Utrecht
   name: LYMEC Congress 2011
   city: Utrecht
@@ -66,6 +77,11 @@
   city: Sofia
   date_start: 2012-10-12
   date_end: 2012-10-14
+- id: 2014-Berlin
+  name: LYMEC Autumn Congress 2014
+  city: Berlin
+  date_start: 2014-10-23  # from the text of 6.04: 'LYMEC Congress, Berlin, Germany 23-25 October 2014'
+  date_end: 2014-10-25
 - id: 2015-Rotterdam
   name: LYMEC Congress 2015
   city: Rotterdam
@@ -146,6 +162,16 @@
   city: Warsaw
   date_start: null  # city from 'prior to Warsaw, Autumn 2024' in the book; dates missing
   date_end: null
+- id: 2025-Zagreb
+  name: LYMEC Spring Congress 2025
+  city: Zagreb
+  date_start: 2025-04-04  # from the ALDE Party event listing; the book says 'Passed Spring 2025'
+  date_end: 2025-04-06
+- id: 2025-Bratislava
+  name: LYMEC Autumn Congress 2025
+  city: Bratislava
+  date_start: 2025-11-14  # from the ALDE Party event announcement; the book says 'Passed Autumn 2025'
+  date_end: 2025-11-16
 - id: 2026-Vienna
   name: LYMEC Spring Congress 2026
   city: Vienna

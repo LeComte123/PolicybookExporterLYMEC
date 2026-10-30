@@ -7,10 +7,11 @@ Usage: uv run scripts/validate.py [--fix]
 - if A replaces B, then B gets status 'superseded' and superseded_by A (and the other way round:
   B.superseded_by = A adds B to A.replaces);
 - a file whose number was changed is renamed to <number>_<id>.md;
-- an adoption date outside the dates of its congress is set to the last day of the congress;
+- an adoption date outside the dates of its congress, or a missing one, is set to the last day of the congress;
 - a resolution marked 'archived' in the status list (resolution_status_list.csv) is archived, or
   superseded if the list names the resolution that replaced it; resolutions in force that are
-  missing from the list get a row, and the list is written in its standard form.
+  missing from the list get a row, a missing congress is taken from the list's 'Adopted at', and
+  the list is written in its standard form.
 Exit code 1 if any problem is left.
 """
 
@@ -91,8 +92,16 @@ def check_resolution(res: pbook.Resolution, categories: dict, congresses: dict, 
         report.error(f"{name}: the file has no header. It must start with a '---' block like the other files.")
         return
 
+    migrated = meta.get("source") == "migration"
     for field in pbook.REQUIRED_FIELDS:
         if meta.get(field) in (None, "", []):
+            if migrated and field in pbook.UNKNOWN_ALLOWED_FOR_MIGRATION:
+                if field == "congress":
+                    report.warn(
+                        f"{name}: the congress is not known yet. Enter it in the status list (column 'Adopted at') "
+                        "or in the file (congress: …)."
+                    )
+                continue
             report.error(f"{name}: required field '{field}' is missing or empty. Add it to the header.")
     for field in pbook.LIST_FIELDS:
         value = meta.get(field, [])
@@ -103,7 +112,7 @@ def check_resolution(res: pbook.Resolution, categories: dict, congresses: dict, 
             report.warn(f"{name}: unknown field '{field}' is ignored. Check the spelling.")
 
     rid, congress = meta.get("id"), meta.get("congress")
-    if rid and congress and not str(rid).startswith(f"{congress}-"):
+    if rid and congress and not migrated and not str(rid).startswith(f"{congress}-"):
         report.error(f"{name}: id '{rid}' must start with its congress, e.g. {congress}-05 (congress, dash, motion number).")
 
     number, category = meta.get("number"), meta.get("category")
@@ -238,6 +247,14 @@ def check_adoption_dates(resolutions: list[pbook.Resolution], congresses: dict, 
         con = congresses.get(str(res.meta.get("congress")), {})
         start, end = pbook.parse_date(con.get("date_start")), pbook.parse_date(con.get("date_end"))
         adopted = pbook.parse_date(res.meta.get("adopted"))
+        if res.meta.get("adopted") is None and end:  # e.g. a migrated resolution whose congress is now known
+            if fix:
+                res.meta["adopted"] = end
+                report.fixed.append(f"resolutions/{res.path.name}: adopted set to {end}, the last day of its congress")
+                changed.add(res.id)
+            else:
+                report.warn(f"resolutions/{res.path.name}: no adoption date yet (validate.py --fix uses the last day of the congress).")
+            continue
         if not (start and end and adopted) or start <= adopted <= end:
             continue
         msg = f"resolutions/{res.path.name}: adopted {adopted} is not within the dates of congress {res.meta['congress']} ({start} to {end})"
@@ -315,7 +332,7 @@ def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, repor
         res.save()
 
 
-def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: Report, fix: bool) -> set[str]:
+def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresses: dict, report: Report, fix: bool) -> set[str]:
     """Apply the Bureau's status list: rows marked 'archived' archive the resolution with that number.
 
     A row with a title only matches a resolution with that title (protects against renumbering
@@ -346,6 +363,11 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: R
         if row.status != "archived":
             continue
         where = f"{name} line {row.line} ({row.number})"
+        if not row.title and any(r is not row and r.number == row.number and r.status == "in force" for r in rows):
+            # The number has a line 'in force' as well: an old resolution that had this number before a
+            # renumbering. Without its title the resolution that has the number today would be archived.
+            report.error(f"{where}: marked archived, but another line says {row.number} is in force. Add the title of the archived resolution.")
+            continue
         same = [r for r in numbered if r.number == row.number]
         matching = [r for r in same if not row.title or status_list.titles_match(row.title, str(r.meta.get("title", "")))]
         if any(r.meta.get("status") != "in_force" for r in matching):
@@ -379,6 +401,21 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: R
             target.meta["status"] = "archived"
             changed.add(target.id)
         report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
+
+    for row in rows:  # 'Adopted at' completes resolutions whose congress is not known yet (migration)
+        if row.status != "in force" or not row.adopted_at:
+            continue
+        target = in_force.get(row.number)
+        if target is None or target.meta.get("congress") or (row.title and not status_list.titles_match(row.title, str(target.meta.get("title", "")))):
+            continue
+        if row.adopted_at not in congresses:
+            report.error(f"{name} line {row.line} ({row.number}): 'Adopted at' {row.adopted_at} is not in congresses.yml. Add the congress there or correct it.")
+        elif fix:
+            target.meta["congress"] = row.adopted_at
+            changed.add(target.id)
+            report.fixed.append(f"resolutions/{target.path.name}: congress set to {row.adopted_at}, as in the status list")
+        else:
+            report.error(f"resolutions/{target.path.name}: the status list says it was adopted at {row.adopted_at}. Run validate.py --fix to fill it in.")
 
     for res in numbered:
         if res.meta.get("status") in ("archived", "superseded") and any(
@@ -417,8 +454,8 @@ def validate(root: Path = pbook.ROOT, fix: bool = False) -> Report:
         check_resolution(res, categories, congresses, report)
     check_uniques(resolutions, report)
     check_file_names(resolutions, report, fix)
+    changed |= check_status_list(root, resolutions, congresses, report, fix)
     changed |= check_adoption_dates(resolutions, congresses, report, fix)
-    changed |= check_status_list(root, resolutions, report, fix)
     by_id = {res.id: res for res in resolutions if res.id}
     for rid in changed:
         by_id[rid].save()

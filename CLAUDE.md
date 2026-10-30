@@ -7,8 +7,9 @@ requests, no review step, no local tools. This file is the specification; the or
 kickoff prompt (until commit 4226044, folder build_instructions/) are only in the git history.
 
 ## Working mode
-- Implement ONE phase at a time (phases 2–5 are done; phase 6, the migration, is left). After each
-  phase: run tests, show what changed, list open questions, then stop until the user says "next".
+- Implement ONE phase at a time (phases 2–6 are done; left from phase 6: the archived resolutions, once
+  the Bureau has filled in the status list, then the clean-up below). After each phase: run tests,
+  show what changed, list open questions, then stop until the user says "next".
 - Python via uv only. Keep it simple: no frameworks beyond the stack below. English code comments.
   No secrets in the repo. Every user-facing error message says what to do next.
 - README.md is the guide for non-technical Bureau/Secretariat users (plain language, no jargon,
@@ -47,7 +48,8 @@ congresses.yml            congress metadata {id, name, city, date_start, date_en
 resolution_status_list.csv  the Bureau's status list: every Policy Book number, in force / archived / not used
 categories.yml            the 9 Policy Book chapters {id, chapter, title, order, last_number}
 imports/                  upload inbox: <congress>.csv (+ <congress>.pdf), only files directly in it are imported
-imports/migration/        material for the one-time migration (phase 6): the Vienna Policy Book (PDF; .docx follows)
+imports/migration/        the one-time migration (phase 6): the Vienna Policy Book as .docx, its Markdown export (.docx.md)
+                          and PDF, and migration_report.md
 imported/<YYYY-MM-DD-HH-MM>_<congress>/  every imported upload, kept for the record (never deleted); one folder
                           per import, time of the import in Brussels time (Europe/Brussels; tzdata), _2 within one minute
 templates/                resolution.tex, policybook.tex (pandoc templates), lymec.latex (shared look),
@@ -55,6 +57,7 @@ templates/                resolution.tex, policybook.tex (pandoc templates), lym
 scripts/                  pbook.py (shared helpers), validate.py, import_openslides.py,
                           openslides_pdf.py (PDF reader for the importer), build.py,
                           status_list.py (reads/extends resolution_status_list.csv),
+                          migrate_vienna.py (one-time migration of the Vienna 2026 Policy Book),
                           open_issue.sh (workflow: open or comment a GitHub issue)
 .github/workflows/        publish.yml
 docs/images/              lymec_logo.png (PDFs, Word files, download page) and the screenshots for README.md
@@ -68,10 +71,13 @@ site/                     generated download page + all files, ready for GitHub 
 ```yaml
 ---
 id: 2026-Vilnius-18        # <congress id>-<OpenSlides motion number, 2 digits>; stable, never changes
+                           # (migrated from the Vienna 2026 book: PB2026-<number there>, e.g. PB2026-1.33)
 number: "6.21"             # Policy Book number <chapter>.<NN>; unique among in_force; chapter == category's chapter
 title: "..."               # agenda prefix like "5. " stripped
-congress: 2026-Vilnius     # key in congresses.yml (<year>-<City in English>[-<Part>])
+congress: 2026-Vilnius     # key in congresses.yml (<year>-<City in English>[-<Part>]); null allowed for
+                           # source migration (not known yet; validate --fix takes it from the status list)
 adopted: 2026-10-25        # default: congress date_end; validate --fix keeps it within the congress dates
+                           # (null allowed for migration; --fix fills it in once the congress has a date_end)
 category: climate-energy   # key in categories.yml
 status: in_force           # in_force | archived | superseded | expired
 replaces: []               # ids (people may write numbers: validate --fix turns '6.03' into the id)
@@ -174,12 +180,29 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
 - PDF creation date = build date (SOURCE_DATE_EPOCH); PDFs are not byte-identical between builds
   (xdvipdfmx uses random font subset tags), DOCX files are.
 
-## Phase 6 plan (migration of the Vienna Policy Book)
-- Inputs: imports/migration/<Vienna book>.docx (pandoc docx → gfm, split at the "X.YY Title" headings)
-  + resolution_status_list.csv (statuses, archived resolutions) + congresses.yml + the Vienna PDF for
-  cross-checks. Run once, locally; the result is reviewed, then committed (the push publishes it).
-- Fields that cannot be derived are left empty and listed in a migration report.
-- Ids of migrated resolutions: <congress>-<number at migration>, e.g. 2018-Berlin-6.08 (no OpenSlides
-  number); `source: migration`.
-- Afterwards (agreed): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and delete the one-time
-  migration script (it stays in the git history).
+## Phase 6: migration of the Vienna 2026 Policy Book (scripts/migrate_vienna.py, run once)
+- Texts from the Markdown export of the book (imports/migration/*.docx.md): cleaner than pandoc's
+  docx→gfm (no blockquote artifacts), but its automatic heading numbers lost the chapter digit ("33."
+  for 1.33). Numbers and titles therefore come from the PDF bookmarks; each bookmark is found as a
+  heading in the Markdown in book order (fuzzy, bookmarks can differ slightly). All 225 found.
+- Texts are word for word (checked against the source, formatting characters ignored); the lines
+  about movers/submitters, adoption, "(Former x.yy prior to …)", keywords stay in the text, because
+  their forms vary too much to move them into the header safely (submitted_by/co_signers stay empty).
+  Structure only: sub-headings → bold paragraphs ("* ## x" in a list: mark removed), chapter lines and
+  stray bullets (●) dropped, zero-width spaces removed, "Considering that:" stuck to the 4.08 title
+  moved into the text, text that Markdown would show as code (deep indentation, tab after a bullet)
+  moved left with pandoc as the judge. Line/paragraph breaks inside sentences are the source's own.
+- Ids PB2026-<number> (not <congress>-…: 38 resolutions have no known congress yet). Congress from the
+  status list ('Adopted at'), else null, filled in later by validate --fix from the status list.
+  Shown as "Congress not known" in the PDFs and last in the index by congress.
+- Congresses added from texts (2009-Rome, 2010-Ljubljana, 2014-Berlin) and ALDE Party event listings
+  (2025-Zagreb, 2025-Bratislava); 9.37/9.48 probably 2024-Warsaw (report only).
+- Statements in the old texts ("2.29 archives 2.09") use the numbers of that time and are only listed in
+  the report. An 'archived' status-list line without a title next to an 'in force' line for the same
+  number is refused (it would archive the resolution that has the number today).
+- Fonts: the Microsoft core Arial on GitHub lacks Ș ș Ț ț (comma below); lymec.latex sets them in
+  Liberation Sans there via XeTeX character classes (fonts-liberation2 in the workflow), and
+  \tracinglostchars=3 makes any other missing character a build error instead of a silent gap.
+- Still to do: archived resolutions from the status list once the Bureau has filled it (title, congress,
+  full text). Then (agreed): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and
+  delete migrate_vienna.py and tests/test_migrate.py (they stay in the git history).

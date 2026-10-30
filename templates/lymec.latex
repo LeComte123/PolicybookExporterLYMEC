@@ -5,6 +5,27 @@
 \setmainfont{Arial}[Ligatures=TeXOff]
 \setsansfont{Arial}[Ligatures=TeXOff]
 
+% No character may get lost: a character the font does not have stops the build with an error
+% instead of leaving a silent gap. The older Arial installed on GitHub lacks the Romanian letters with
+% comma below (Ș ș Ț ț); there XeTeX sets them in Liberation Sans (Arial's free twin, same letter
+% widths). They stay ordinary characters, so titles and PDF bookmarks are not affected.
+\tracinglostchars=3
+\newXeTeXintercharclass\lymecromanian
+\XeTeXcharclass"0218=\lymecromanian
+\XeTeXcharclass"0219=\lymecromanian
+\XeTeXcharclass"021A=\lymecromanian
+\XeTeXcharclass"021B=\lymecromanian
+\newcommand{\lymecromanianfont}{\iffontchar\font"0219\relax\else\fontspec{Liberation Sans}\fi}
+\count255=0
+\loop % classes 0-3 (Latin and the CJK classes of the LaTeX format) and 4095 (start or end of text)
+  \XeTeXinterchartoks\count255\lymecromanian={\begingroup\lymecromanianfont}
+  \XeTeXinterchartoks\lymecromanian\count255={\endgroup}
+  \advance\count255 by 1
+\ifnum\count255<4 \repeat
+\XeTeXinterchartoks 4095 \lymecromanian={\begingroup\lymecromanianfont}
+\XeTeXinterchartoks \lymecromanian 4095={\endgroup}
+\XeTeXinterchartokenstate=1
+
 % Colours of the LYMEC logo
 \definecolor{lymecblue}{HTML}{20A8E0}
 \definecolor{lymecpink}{HTML}{E80088}
