@@ -2,7 +2,7 @@
 
 Accepted OpenSlides motions → one Markdown file per resolution (git is the database) → per-resolution
 PDF/DOCX + `LYMEC_Policy_Book.pdf` (in force) + `LYMEC_Policy_Book_Archive.pdf` (everything).
-Full spec: `claude_instructions/SPEC.md`. Where this file deviates from SPEC.md, this file wins
+Full spec: `build_instructions/SPEC.md`. Where this file deviates from SPEC.md, this file wins
 (the deviations come from the real OpenSlides export, see "Decisions").
 
 ## Working mode
@@ -20,13 +20,15 @@ Full spec: `claude_instructions/SPEC.md`. Where this file deviates from SPEC.md,
 
 ## Stack
 - Python 3.12 (`.python-version`), uv (`pyproject.toml`, `uv.lock`). Libraries: pyyaml,
-  python-frontmatter, pandas (CSV only), pymupdf, rapidfuzz, openpyxl (status list); dev: pytest.
+  python-frontmatter, pandas (OpenSlides CSV only), pymupdf, rapidfuzz; dev: pytest.
 - pandoc (local: `brew install pandoc`; not a Python package) for HTML→Markdown at import and
   Markdown→PDF/DOCX at build. LaTeX engine: xelatex (local: MacTeX). Font: Arial everywhere (PDF, DOCX,
   web page); a system font, not in the repo (licence). macOS/Windows have it; Linux: ttf-mscorefonts-installer.
 - CI: GitHub Actions, one workflow `.github/workflows/publish.yml`, one job in the Docker image
   `pandoc/extra:3.11.0.0-debian` (pandoc 3.11 + TeX Live with KOMA-Script; the job installs git, gh and Arial).
-  The full test suite passes in that image.
+  The full test suite passes in that image. The job runs as root on a checkout owned by the runner's
+  user, so it marks $GITHUB_WORKSPACE as git safe.directory. astral-sh/setup-uv has no major-version
+  tag: pin a release (v10.3.0).
   The repo default GITHUB_TOKEN is read-only, so publish.yml declares exactly these top-level
   permissions and nothing else:
   ```yaml
@@ -41,7 +43,7 @@ Full spec: `claude_instructions/SPEC.md`. Where this file deviates from SPEC.md,
 ```
 resolutions/<number>_<id>.md  one file per resolution (source of truth), e.g. 4.27_2026-Vilnius-16.md
 congresses.yml            congress metadata {id, name, city, date_start, date_end}
-resolution_status_list.xlsx  the Bureau's status list: every Policy Book number, in force / archived / not used
+resolution_status_list.csv  the Bureau's status list: every Policy Book number, in force / archived / not used
 categories.yml            the 9 Policy Book chapters {id, chapter, title, order, last_number}
 imports/                  upload inbox: <congress>.csv (+ <congress>.pdf), only files directly in it are imported
 imports/migration/        material for the one-time migration (phase 6): the Vienna Policy Book (PDF; .docx follows)
@@ -51,7 +53,7 @@ templates/                resolution.tex, policybook.tex (pandoc templates), lym
 assets/                   lymec_logo.png
 scripts/                  pbook.py (shared helpers), validate.py, import_openslides.py,
                           openslides_pdf.py (PDF reader for the importer), build.py,
-                          status_list.py (reads/extends resolution_status_list.xlsx),
+                          status_list.py (reads/extends resolution_status_list.csv),
                           open_issue.sh (workflow: open or comment a GitHub issue)
 .github/workflows/        publish.yml
 docs/images/              screenshots for README.md
@@ -99,8 +101,11 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   `number` is edited). Numbers are unique among in_force resolutions only: after a renumbering an
   archived resolution keeps its old number. New numbers = max(`last_number` in categories.yml, highest
   existing in that chapter) + 1, assigned in motion-number order.
-- Archiving is confirmed by the Bureau's status list (user's decision), resolution_status_list.xlsx in
-  the repo root, tab "Resolutions", columns found by header:
+- Archiving is confirmed by the Bureau's status list (user's decision), resolution_status_list.csv in
+  the repo root (CSV, not xlsx: GitHub can show and edit it online). Columns found by header; the
+  edited ones first: Number, Status, Archived at, Replaced by, Title, then migration data. Read with
+  delimiter sniffing and cp1252 fallback; validate --fix writes the standard form (comma, UTF-8 with
+  BOM for Excel, sorted by number, 6.1 → 6.10), which repairs Excel round trips.
   - Statement paragraphs in a motion text, anywhere in it ("This motion/resolution replaces|archives|
     repeals …", "Replaces: …", "Archives: …", "Archiving Resolution(s) …"; numbers in other sentences
     are ignored), only take effect if the list marks the number 'archived' (title must match if the row
@@ -110,11 +115,13 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   - validate --fix applies every 'archived' row: the in-force resolution with that number (and title)
     becomes archived, or superseded if 'Replaced by' names an in-force number. A row is satisfied when a
     matching resolution is already archived/superseded (renumbering). Rows for in-force resolutions
-    missing from the list are appended (into the first empty, pre-formatted rows).
+    missing from the list are added.
   - The migration (phase 6) uses the same rules: archived rows = archived resolutions; statements in
     the Vienna texts ("This resolution archives 2.21 …") are checked against the list.
   - The list was generated from the Vienna PDF (225 in force, 61 gap numbers, congress per resolution
-    where the "Adopted at" line could be read; tab "Congresses" is for the migration only).
+    where the "Adopted at" line could be read). The congresses read from the book are in congresses.yml
+    (comments mark uncertain data; Spring and Autumn 2025 are still missing; Autumn 2024 = Warsaw, from a
+    "prior to Warsaw, Autumn 2024" note in the book).
 - Status `archived` replaces SPEC's `repealed` (LYMEC's word, shown as "Archived").
 - A congress missing from congresses.yml gets a placeholder entry (city from the id, upload day as
   dates) and a "New congress" issue; when the real dates are entered, validate --fix moves the
@@ -161,7 +168,7 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
 
 ## Phase 6 plan (migration of the Vienna Policy Book)
 - Inputs: imports/migration/<Vienna book>.docx (pandoc docx → gfm, split at the "X.YY Title" headings)
-  + resolution_status_list.xlsx (statuses, congresses tab, archived resolutions) + the Vienna PDF for
+  + resolution_status_list.csv (statuses, archived resolutions) + congresses.yml + the Vienna PDF for
   cross-checks. Run once, locally; the result is reviewed, then committed (the push publishes it).
 - Ids of migrated resolutions: <congress>-<number at migration>, e.g. 2018-Berlin-6.08 (no OpenSlides
   number); `source: migration`.

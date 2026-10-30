@@ -15,7 +15,7 @@ on:
       - "resolutions/**"
       - "congresses.yml"
       - "categories.yml"
-      - "resolution_status_list.xlsx"
+      - "resolution_status_list.csv"
       - "templates/**"
       - "assets/**"
       - "scripts/**"
@@ -60,6 +60,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # history and tags, to compare with the last release
+
+      - name: Let git work in the checked-out folder
+        # The folder belongs to the runner's user, not to root in the container: without this, git
+        # stops with "dubious ownership" / "not in a git directory".
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: astral-sh/setup-uv@v10.3.0   # this action has no major-version tag (v10), so pin a release
 

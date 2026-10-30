@@ -153,9 +153,9 @@ new resolutions are then corrected automatically.
 
 ## Archiving resolutions: the status list
 
-The file **resolution_status_list.xlsx** (on the main page of this repository) lists every Policy
-Book number with its status: *in force*, *archived* or *not used*. The Bureau keeps it up to date.
-It decides which resolutions are archived:
+The file **resolution_status_list.csv** (on the main page of this repository) lists every Policy
+Book number with its status: `in force`, `archived` or `not used`. GitHub shows it as a table with a
+search box. The Bureau keeps it up to date. It decides which resolutions are archived:
 
 - Every resolution marked **archived** in the list is archived: it leaves the Policy Book and moves to
   the archive edition.
@@ -165,25 +165,61 @@ It decides which resolutions are archived:
   if the list marks that resolution as archived. If not, an issue "Please check the status list"
   asks you to confirm it, and the resolution stays in force until you do.
 
-To archive or replace resolutions after a congress:
+### Archive or replace resolutions after a congress
 
-1. On the main page, open **resolution_status_list.xlsx** and click **Download**. Always take the
-   latest version, because new resolutions are added to it automatically.
-2. In the tab *Resolutions*, for each resolution the congress archived or replaced:
-   - set **Status** to `archived`;
-   - set **Archived at** to the congress, e.g. `2026-Vilnius`;
-   - if it was replaced by a new resolution, write the new resolution's number under
-     **Replaced by**. The new numbers are known after the import, so you can add this later
-     (the issue "Please check the status list" tells you the number).
-3. Save the file, then on the main page click **Add file → Upload files**, drag the file in and
-   click **Commit changes**. It replaces the old version.
+1. On the main page, open **resolution_status_list.csv** and click the **pencil icon** (*Edit this
+   file*). Each line is one Policy Book number. The columns are separated by commas; the first four
+   are **Number, Status, Archived at, Replaced by**.
+2. Find the line of the resolution: press Ctrl+F (Mac: Cmd+F) and search for the number followed by
+   a comma, e.g. `6.03,`. The line starts like this:
+
+   ```
+   6.03,in force,,,The future is Nuclear,...
+   ```
+
+3. Change the beginning of the line:
+
+   ```
+   6.03,archived,2026-Vilnius,4.28,The future is Nuclear,...
+   ```
+
+   - `archived` instead of `in force`;
+   - after the next comma: the congress that archived it;
+   - after the next comma: the number of the new resolution, if it was replaced. Otherwise leave it
+     empty, so there are two commas in a row: `6.03,archived,2026-Vilnius,,The future…`. The new
+     numbers are known after the import, so you can add this later (the issue "Please check the
+     status list" tells you the number).
+
+   Leave the rest of the line as it is.
+4. Click **Commit changes**.
 
 A few minutes later the resolutions are archived ("Archived" banner) or superseded ("Superseded by
 …" banner) in the archive edition, and they are no longer in the Policy Book.
 
-Change the **Number** of a row only when that resolution gets a new number: the number says which
-resolution is meant. The **Title** is used to double-check that the number is right. The list is also used once to move the old Policy Book into
-this system; its first tab, *How to fill in*, explains that.
+You can also download the file (**Download** button), edit it in Excel and upload it again (**Add
+file → Upload files**, same name). What Excel changes when saving (semicolons instead of commas,
+6.10 written as 6.1) is repaired automatically. New resolutions are added to the list after each
+import, so always start from the latest version.
+
+Change the **Number** of a line only when that resolution gets a new number: the number says which
+resolution is meant. The **Title** is used to double-check that the number is right.
+
+### First filling (once, for the old Policy Book)
+
+The list is also used once to move the old Policy Book into this system. For this, Excel is easier
+than the web editor.
+
+- Lines with **in force** come from the Vienna 2026 Policy Book. Check **Adopted at** (the congress);
+  it was read from the column **Vienna 2026 book says**. Where it is empty, the book does not say:
+  fill it in.
+- Lines with an **empty Status** are numbers missing from the Vienna book. Write `archived` if a
+  resolution with this number was archived, or `not used` if the number was never given. For
+  archived ones, fill in what is known: Archived at, Replaced by, Title, Adopted at, Adopted on
+  (written 2015-05-03), Submitted by, Co-signers, Full text (where the text can be found) and Notes.
+- Numbers were changed in 2021–2023, so an archived resolution may have had a number that another
+  resolution uses today. Add a new line for it, with that old number, `archived` and its title.
+- The congresses are in `congresses.yml`. Check them there; the comments in the file say what is
+  uncertain, and the congresses of Spring and Autumn 2025 are still missing.
 
 
 ## When something goes wrong
@@ -309,8 +345,8 @@ number in the status list as well.
 | `imports` | Put new OpenSlides exports here. The subfolder `imports/migration` holds material for moving the old Policy Book into this system once; please leave it alone. |
 | `imported` | Every uploaded export, kept for the record. |
 | `resolutions` | One file per resolution. |
-| `resolution_status_list.xlsx` | The status list: every Policy Book number and whether it is in force or archived. |
-| `congresses.yml` | The list of congresses. |
+| `resolution_status_list.csv` | The status list: every Policy Book number and whether it is in force or archived. |
+| `congresses.yml` | The list of congresses since 1992. |
 | `categories.yml` | The nine chapters of the Policy Book. |
 | `docs` | Pictures for this guide. |
 | everything else | The technical parts. Notes for developers are in `CLAUDE.md`. |

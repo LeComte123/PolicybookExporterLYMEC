@@ -594,9 +594,9 @@ def write_reports(root: Path, plans: list[Plan]) -> None:
         lines += [f"- {item}" for plan in unconfirmed for item in plan.unconfirmed]
         lines += [
             "",
-            f"What to do: download {status_list.FILE}, make the changes described above if they are right, and "
-            "upload it again (Add file → Upload files, same name). The resolutions are then archived automatically. "
-            "Close this issue when done.",
+            f"What to do: if these changes are right, open {status_list.FILE} on GitHub, click the pencil icon, "
+            "make them (in the line of each number: Status, Archived at, Replaced by) and click Commit changes. "
+            "The resolutions are then archived automatically. Close this issue when done.",
         ]
         check_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     else:

@@ -260,14 +260,14 @@ def test_failed_import_writes_the_issue_text(repo):
 
 def test_other_files_in_imports_are_left_alone(repo):
     (repo / "imports" / "migration").mkdir()
-    for name in ("migration/Policy Book Vienna.pdf", "resolution_status_list.xlsx", ".gitkeep"):
+    for name in ("migration/Policy Book Vienna.pdf", "migration/notes.docx", ".gitkeep"):
         (repo / "imports" / name).write_text("not an OpenSlides export")
     assert imp.main(["--root", str(repo)]) == 0  # nothing to import
     upload(repo, "colliding.csv", "2026-Vilnius.csv")
     imp.run([], repo)
     assert written(repo) == ["2026-Vilnius-01"]
     left = sorted(str(p.relative_to(repo / "imports")) for p in (repo / "imports").rglob("*") if p.is_file())
-    assert left == [".gitkeep", "migration/Policy Book Vienna.pdf", "resolution_status_list.xlsx"]
+    assert left == [".gitkeep", "migration/Policy Book Vienna.pdf", "migration/notes.docx"]
 
 
 def test_missing_column_fails(repo):
@@ -342,7 +342,7 @@ def test_statement_not_in_the_status_list_is_only_reported(repo, make_status_lis
     assert load(repo, "2026-Vilnius-90").meta["status"] == "in_force"
     issue = (repo / "dist" / "status-check.md").read_text()
     assert issue.startswith("# Please check the status list: 2026-Vilnius\n")
-    assert "set 6.03 to 'archived' in resolution_status_list.xlsx and write 6.21 under 'Replaced by'" in issue
+    assert "set 6.03 to 'archived' in resolution_status_list.csv and write 6.21 under 'Replaced by'" in issue
     assert len(plans[0].unconfirmed) == 1
 
 

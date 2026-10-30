@@ -252,7 +252,7 @@ def test_cli_exit_codes(repo):
     assert "1 problem(s) found" in bad.stdout
 
 
-# ---------------------------------------------------------------- the status list (resolution_status_list.xlsx)
+# ---------------------------------------------------------------- the status list (resolution_status_list.csv)
 
 
 def test_status_list_archives_a_resolution_with_fix(repo, make_status_list):
@@ -307,6 +307,26 @@ def test_status_list_in_force_but_file_archived_is_a_warning(repo, make_status_l
     assert any("is archived, but the status list says 'in force'" in w for w in report.warnings)
 
 
-def test_damaged_status_list_is_an_error(repo):
-    (repo / "resolution_status_list.xlsx").write_text("not an Excel file")
-    assert any("cannot be opened" in e for e in errors(repo))
+def test_status_list_without_column_names_is_an_error(repo):
+    (repo / "resolution_status_list.csv").write_text("6.21,in force\n")
+    assert any("the first line must be the column names" in e for e in errors(repo))
+
+
+def test_status_list_wrong_values(repo, make_status_list):
+    make_status_list(repo, [("6.21", "", "in force"), ("6.22", "", "abolished"), ("6,23", "", "")])
+    errs = errors(repo)
+    assert any("line 3 (6.22): status 'abolished' is not allowed" in e for e in errs)
+    assert any("line 4: '6,23' is not a Policy Book number" in e for e in errs)
+
+
+def test_status_list_saved_by_excel_is_repaired(repo):
+    """Excel in many European languages saves with semicolons, in the Windows encoding, and drops the 0 of 6.10."""
+    text = "Number;Status;Archived at;Replaced by;Title;Notes\r\n6.22;in force;;;Title of 2026-Vilnius-18;Café\r\n6.21;In Force;;;;\r\n6.1;not used;;;;\r\n"
+    (repo / "resolution_status_list.csv").write_bytes(text.encode("cp1252"))
+    report = validate.validate(repo, fix=True)
+    assert report.errors == []
+    lines = (repo / "resolution_status_list.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert lines[0].startswith("Number,Status,Archived at,Replaced by,Title,Adopted at,") and lines[0].endswith(",Notes")
+    assert [line.split(",")[:2] for line in lines[1:]] == [["6.10", "not used"], ["6.21", "in force"], ["6.22", "in force"]]
+    assert lines[3].endswith(",Café")
+    assert validate.validate(repo, fix=True).fixed == []  # already in the standard form

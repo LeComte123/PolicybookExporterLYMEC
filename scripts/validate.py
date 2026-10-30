@@ -8,9 +8,9 @@ Usage: uv run scripts/validate.py [--fix]
   B.superseded_by = A adds B to A.replaces);
 - a file whose number was changed is renamed to <number>_<id>.md;
 - an adoption date outside the dates of its congress is set to the last day of the congress;
-- a resolution marked 'archived' in the status list (resolution_status_list.xlsx) is archived, or
+- a resolution marked 'archived' in the status list (resolution_status_list.csv) is archived, or
   superseded if the list names the resolution that replaced it; resolutions in force that are
-  missing from the list get a row.
+  missing from the list get a row, and the list is written in its standard form.
 Exit code 1 if any problem is left.
 """
 
@@ -320,15 +320,24 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: R
 
     A row with a title only matches a resolution with that title (protects against renumbering
     mix-ups). A row is already satisfied when a resolution with its number is no longer in force.
+    With --fix, rows for new resolutions are added and the file is written in its standard form.
     """
+    name = status_list.FILE
     try:
-        rows = status_list.load(root)
+        table = status_list.read(root)
     except status_list.StatusListError as exc:
         report.error(str(exc))
         return set()
-    if rows is None:
+    if table is None:
         return set()
-    name = status_list.FILE
+    header, records = table
+    rows = status_list.rows_of(records)
+    for row in rows:
+        if not pbook.NUMBER_RE.match(row.number):
+            report.error(f"{name} line {row.line}: '{row.number}' is not a Policy Book number like 6.21. Correct it.")
+        if row.status and row.status not in status_list.STATUSES:
+            report.error(f"{name} line {row.line} ({row.number}): status '{row.status}' is not allowed. Write in force, archived or not used.")
+
     numbered = [r for r in resolutions if isinstance(r.meta.get("number"), str)]
     in_force = {r.number: r for r in numbered if r.meta.get("status") == "in_force"}
     replaced = {t for r in resolutions for t in r.meta.get("replaces") or [] if isinstance(t, str)}
@@ -336,7 +345,7 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: R
     for row in rows:
         if row.status != "archived":
             continue
-        where = f"{name} row {row.line} ({row.number})"
+        where = f"{name} line {row.line} ({row.number})"
         same = [r for r in numbered if r.number == row.number]
         matching = [r for r in same if not row.title or status_list.titles_match(row.title, str(r.meta.get("title", "")))]
         if any(r.meta.get("status") != "in_force" for r in matching):
@@ -371,19 +380,22 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], report: R
             changed.add(target.id)
         report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
 
-    listed = {row.number for row in rows}
-    missing = [r for r in in_force.values() if r.number not in listed]
-    if missing and fix:
-        status_list.add_rows(root, sorted(missing, key=lambda r: (int(r.number.split(".")[0]), int(r.number.split(".")[1]))))
-        report.fixed.append(f"{name}: rows added for {', '.join(r.number for r in missing)}")
-    elif missing:
-        report.warn(f"{name}: no row yet for {', '.join(r.number for r in missing)} (validate.py --fix adds them).")
     for res in numbered:
         if res.meta.get("status") in ("archived", "superseded") and any(
             row.number == res.number and row.status == "in force" and (not row.title or status_list.titles_match(row.title, str(res.meta.get("title", ""))))
             for row in rows
         ):
             report.warn(f"resolutions/{res.path.name} is {res.meta['status']}, but the status list says 'in force'. Update the status list.")
+
+    listed = {row.number for row in rows}
+    missing = sorted((r for r in in_force.values() if r.number not in listed), key=lambda r: status_list.number_key(r.number))
+    if not fix:
+        if missing:
+            report.warn(f"{name}: no row yet for {', '.join(r.number for r in missing)} (validate.py --fix adds them).")
+        return changed
+    if status_list.write(root, header, records + [status_list.new_record(r) for r in missing]):
+        added = f"rows added for {', '.join(r.number for r in missing)}; " if missing else ""
+        report.fixed.append(f"{name}: {added}written in the standard form (sorted, comma separated)")
     return changed
 
 
