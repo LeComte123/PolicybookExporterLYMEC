@@ -1,16 +1,17 @@
 """The status list resolution_status_list.csv: the Bureau's record of every Policy Book number.
 
-One row per number. The columns the Bureau edits come first, so a change is made at the start of a
+One row per resolution; a number can have several rows (one in force, archived ones that had the number
+before a renumbering). The columns the Bureau edits come first, so a change is made at the start of a
 line in the GitHub web editor: Number, Status ("in force", "archived" or "not used"), Archived at
-(congress id), Replaced by (number), then Title and the information for the migration. GitHub shows
-the file as a table; it can also be edited in Excel and uploaded again.
+(congress id), Replaced by (number), then Title and Adopted at (congress id; fills in the congress of a
+resolution that has none). GitHub shows the file as a table; it can also be edited in Excel and
+uploaded again.
 
 The list confirms archiving: a motion text saying it replaces or archives a resolution only takes
 effect when the list marks that resolution as archived (import_openslides.py), and every resolution
 marked archived in the list is archived (validate.py --fix). validate.py --fix also adds rows for new
 resolutions and rewrites the file in one standard form (comma separated, UTF-8, sorted by number),
-which repairs what Excel does when saving (semicolons, 6.10 written as 6.1). The migration of the
-old Policy Book uses the same rules.
+which repairs what Excel does when saving (semicolons, 6.10 written as 6.1).
 """
 
 from __future__ import annotations
@@ -26,10 +27,7 @@ from rapidfuzz import fuzz
 import pbook
 
 FILE = "resolution_status_list.csv"
-HEADER = [
-    "Number", "Status", "Archived at", "Replaced by", "Title", "Adopted at", "Adopted on", "Former numbers",
-    "Submitted by", "Co-signers", "Full text", "Vienna 2026 book says", "Notes",
-]  # fmt: skip
+HEADER = ["Number", "Status", "Archived at", "Replaced by", "Title", "Adopted at"]  # other columns are kept after these
 STATUSES = ("in force", "archived", "not used")
 TITLE_MATCH = 85  # rapidfuzz ratio of two normalised titles that are the same resolution
 

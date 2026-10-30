@@ -10,7 +10,6 @@ Everything is done in your web browser on GitHub. You do not need to install any
 - [After a congress: add the new resolutions](#after-a-congress-add-the-new-resolutions)
 - [Add a new congress](#add-a-new-congress)
 - [Archiving resolutions: the status list](#archiving-resolutions-the-status-list)
-- [What is still open](#what-is-still-open)
 - [When something goes wrong](#when-something-goes-wrong)
 - [Correcting a resolution](#correcting-a-resolution)
 - [What is in this repository](#what-is-in-this-repository)
@@ -180,13 +179,13 @@ with a search box. The Bureau keeps it up to date. It decides which resolutions 
    `archived` lines are older resolutions that had the same number). The line starts like this:
 
    ```
-   6.03,in force,,,The future is Nuclear,...
+   6.03,in force,,,The future is Nuclear,2011-Utrecht
    ```
 
 3. Change the beginning of the line:
 
    ```
-   6.03,archived,2026-Vilnius,4.28,The future is Nuclear,...
+   6.03,archived,2026-Vilnius,4.28,The future is Nuclear,2011-Utrecht
    ```
 
    - `archived` instead of `in force`;
@@ -210,31 +209,13 @@ import, so always start from the latest version.
 Change the **Number** of a line only when that resolution gets a new number: the number says which
 resolution is meant. The **Title** is used to double-check that the number is right.
 
-### First filling (once, for the old Policy Book)
+### Where the list comes from
 
-The list is also used once to move the old Policy Book into this system. For this, Excel is easier
-than the web editor.
-
-- Lines with **in force** come from the Vienna 2026 Policy Book. Check **Adopted at** (the congress);
-  it was read from the column **Vienna 2026 book says**. Where it is empty, the book does not say:
-  fill it in. The resolution then gets the congress automatically; until then its PDF says "Congress
-  not known". The file `imports/migration/migration_report.md` lists these resolutions.
-- Lines with an **empty Status** are numbers missing from the Vienna book. Write `archived` if a
-  resolution with this number was archived, or `not used` if the number was never given. For
-  archived ones, fill in what is known: Archived at, Replaced by, Title, Adopted at, Adopted on
-  (written 2015-05-03), Submitted by, Co-signers, Full text (where the text can be found) and Notes.
-- Numbers were changed in 2021–2023, so an archived resolution may have had a number that another
-  resolution uses today. Add a new line for it, with that old number, `archived` and its title.
-- The congresses are in `congresses.yml`. Check them there; the comments in the file say what is
-  uncertain, and the congresses of Spring and Autumn 2025 are still missing.
-
-
-## What is still open
-
-The file **OPEN_TASKS.md** (on the main page) lists everything that still has to be filled in or
-checked, resolution by resolution: numbers without a status, resolutions whose congress is not known,
-missing congress dates, submitters, archived resolutions mentioned in texts, motions that were not
-imported. It is updated automatically after every change, so it gets shorter as you work through it.
+The list was filled once from the Vienna 2026 Policy Book, the congress minutes and the Digital
+Assemblies of 2020–2023 (lymec.eu/documents). The column **Adopted at** is the congress where a
+resolution was adopted. If a resolution in force does not know its congress yet (its PDF says
+"Congress not known"), write the congress there, e.g. `2015-Rotterdam`: the resolution gets it
+automatically.
 
 
 ## When something goes wrong
@@ -364,11 +345,10 @@ chapter (e.g. 1.41), so the gaps left by archived resolutions stay. To correct a
 
 | Folder or file | What it is for |
 |---|---|
-| `imports` | Put new OpenSlides exports here. The subfolder `imports/migration` holds material for moving the old Policy Book into this system once; please leave it alone. |
-| `imported` | Every uploaded export, kept for the record: one folder per import, named date-time_congress. |
+| `imports` | Put new OpenSlides exports here. |
+| `imported` | Every uploaded export, kept for the record: one folder per import, named date-time_congress. The folder ending in `_migration` holds the Vienna 2026 Policy Book, from which the resolutions were taken over once. |
 | `resolutions` | One file per resolution. |
 | `resolution_status_list.csv` | The status list: every Policy Book number and whether it is in force or archived. |
-| `OPEN_TASKS.md` | What still has to be filled in or checked (made automatically). |
 | `congresses.yml` | The list of congresses since 1992. |
 | `categories.yml` | The nine chapters of the Policy Book. |
 | `docs` | Pictures: the LYMEC logo used in the Policy Book, and the screenshots for this guide. |

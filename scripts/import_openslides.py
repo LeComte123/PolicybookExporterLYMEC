@@ -19,7 +19,7 @@ dist/import-failed.md if the import stopped. The last two are the texts of the G
 workflow opens: first line "# <issue title>", then the body. dist/new-congress.md is written when a
 congress was not in congresses.yml and a placeholder entry was added, dist/status-check.md when a
 motion says it replaces or archives a resolution that the status list does not mark as archived.
-Other files in imports/ (e.g. the migration material in imports/migration/) are not touched.
+Files in subfolders of imports/ are not touched.
 """
 
 from __future__ import annotations

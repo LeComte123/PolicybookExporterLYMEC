@@ -401,8 +401,8 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
         report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
     if without_text:
         report.warn(
-            f"{name}: {len(without_text)} archived resolution(s) are not in the database (OPEN_TASKS.md lists them); "
-            "nothing changes for them. A line meant to archive a resolution in force needs that resolution's title."
+            f"{name}: {len(without_text)} archived resolution(s) are not in the database (older resolutions whose texts are "
+            "missing); nothing changes for them. A line meant to archive a resolution in force needs that resolution's title."
         )
 
     for row in rows:  # 'Adopted at' completes resolutions whose congress is not known yet (migration)

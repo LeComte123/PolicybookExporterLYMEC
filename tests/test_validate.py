@@ -336,7 +336,7 @@ def test_status_list_saved_by_excel_is_repaired(repo):
     report = validate.validate(repo, fix=True)
     assert report.errors == []
     lines = (repo / "resolution_status_list.csv").read_text(encoding="utf-8-sig").splitlines()
-    assert lines[0].startswith("Number,Status,Archived at,Replaced by,Title,Adopted at,") and lines[0].endswith(",Notes")
+    assert lines[0] == "Number,Status,Archived at,Replaced by,Title,Adopted at,Notes"  # a column of their own is kept
     assert [line.split(",")[:2] for line in lines[1:]] == [["6.10", "not used"], ["6.21", "in force"], ["6.22", "in force"]]
     assert lines[3].endswith(",Café")
     assert validate.validate(repo, fix=True).fixed == []  # already in the standard form
