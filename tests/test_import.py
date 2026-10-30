@@ -50,6 +50,14 @@ def motion_row(number, text, title="1. A Title", category="Chapter 6 - Climate a
     return [number, "Anna Example (JOVD · No. In person)", title, text, category, state]
 
 
+def imported(repo):
+    """Files kept in imported/, as 'folder/file'."""
+    return sorted(str(p.relative_to(repo / "imported")) for p in (repo / "imported").rglob("*") if p.is_file())
+
+
+NOW = dt.datetime(2026, 10, 30, 12, 45)
+
+
 def written(repo):
     """Ids of the resolution files (<number>_<id>.md)."""
     return sorted(p.stem.split("_", 1)[1] for p in (repo / "resolutions").glob("*.md"))
@@ -70,7 +78,7 @@ def load(repo, rid):
 def test_real_export_imports_clean_motions_and_skips_conflicts(repo):
     upload(repo, "2026-Vilnius.csv", "2026-Vilnius.csv")
     upload(repo, "2026-Vilnius.pdf", "2026-Vilnius.pdf")
-    plans = imp.run([], repo)
+    plans = imp.run([], repo, now=NOW)
 
     assert written(repo) == [f"2026-Vilnius-{n}" for n in CLEAN]
     files = sorted(p.name for p in (repo / "resolutions").iterdir())
@@ -80,8 +88,8 @@ def test_real_export_imports_clean_motions_and_skips_conflicts(repo):
     assert len(plans[0].errors) == len(CONFLICTED)  # the conflicts themselves are tested with colliding.csv
     assert validate.validate(repo).errors == []
     assert (repo / "dist" / "import-report.md").exists()
-    # the uploads are kept in imported/, and the inbox is empty again
-    assert sorted(p.name for p in (repo / "imported").iterdir()) == ["2026-Vilnius.csv", "2026-Vilnius.pdf"]
+    # the uploads are kept in imported/<date-time>_<congress>/, and the inbox is empty again
+    assert imported(repo) == ["2026-10-30-12-45_2026-Vilnius/2026-Vilnius.csv", "2026-10-30-12-45_2026-Vilnius/2026-Vilnius.pdf"]
     assert list((repo / "imports").iterdir()) == []
 
 
@@ -170,18 +178,19 @@ def test_colliding_amendments_are_reported_and_not_imported(repo):
 
 def test_fixed_reupload_imports_the_skipped_motion(repo):
     path = upload(repo, "colliding.csv", "2026-Vilnius.csv")
-    imp.run([], repo)
+    imp.run([], repo, now=NOW)
     first = path_of(repo, "2026-Vilnius-01").read_text()
     # The Secretariat resolves the conflict in OpenSlides and uploads a new export under the same name.
     write_csv(path, [
         motion_row("01", "<p>Submitted by: JOVD</p><p>Changed text.</p>", "1. A Clean Motion", "Chapter 2 - Justice"),
         motion_row("02", "<p>Submitted by: LHG</p><p>Resolved text.</p>", "2. Fixed", "Chapter 2 - Justice"),
     ])
-    plans = imp.run([], repo)
+    plans = imp.run([], repo, now=dt.datetime(2026, 11, 2, 9, 5))
 
     assert written(repo) == ["2026-Vilnius-01", "2026-Vilnius-02"]
     assert path_of(repo, "2026-Vilnius-01").read_text() == first  # never overwritten without --force
-    assert sorted(p.name for p in (repo / "imported").iterdir()) == ["2026-Vilnius.csv", "2026-Vilnius_2.csv"]
+    # each upload in its own folder, named after the time of the import
+    assert imported(repo) == ["2026-10-30-12-45_2026-Vilnius/2026-Vilnius.csv", "2026-11-02-09-05_2026-Vilnius/2026-Vilnius.csv"]
     assert any("already in the database" in s for s in plans[0].skipped)
     assert plans[0].errors == []
 
@@ -191,15 +200,24 @@ def test_fixed_reupload_imports_the_skipped_motion(repo):
 
 def test_same_file_twice_is_a_no_op(repo):
     upload(repo, "colliding.csv", "2026-Vilnius.csv")
-    imp.run([], repo)
+    imp.run([], repo, now=NOW)
     before = {p.name: p.read_text() for p in (repo / "resolutions").glob("*.md")}
     assert imp.run([], repo) == []  # empty inbox
     upload(repo, "colliding.csv", "2026-Vilnius.csv")
-    assert imp.run([], repo) == []  # same content as imported/2026-Vilnius.csv
-    assert imp.run([repo / "imported" / "2026-Vilnius.csv"], repo) == []  # explicit path, same content
+    assert imp.run([], repo) == []  # same content as the file in imported/
+    kept = repo / "imported" / "2026-10-30-12-45_2026-Vilnius" / "2026-Vilnius.csv"
+    assert imp.run([kept], repo) == []  # explicit path, same content
     assert {p.name: p.read_text() for p in (repo / "resolutions").glob("*.md")} == before
     assert list((repo / "imports").iterdir()) == []
-    assert [p.name for p in (repo / "imported").iterdir()] == ["2026-Vilnius.csv"]
+    assert imported(repo) == ["2026-10-30-12-45_2026-Vilnius/2026-Vilnius.csv"]
+
+
+def test_two_imports_in_the_same_minute_get_separate_folders(repo):
+    write_csv(repo / "imports" / "2026-Vilnius.csv", [motion_row("01", "<p>Text.</p>")])
+    imp.run([], repo, now=NOW)
+    write_csv(repo / "imports" / "2026-Vilnius.csv", [motion_row("02", "<p>Other text.</p>")])
+    imp.run([], repo, now=NOW)
+    assert imported(repo) == ["2026-10-30-12-45_2026-Vilnius/2026-Vilnius.csv", "2026-10-30-12-45_2026-Vilnius_2/2026-Vilnius.csv"]
 
 
 def test_force_overwrites_text_but_keeps_number_and_status(repo):
@@ -404,7 +422,7 @@ def test_numbers_continue_in_motion_order(repo):
 
 def test_new_congress_gets_a_stub_entry(repo):
     write_csv(repo / "imports" / "2027-kraków.csv", [motion_row("01", "<p>Text.</p>")])  # typed in lower case, with accent
-    plans = imp.run([], repo, today=dt.date(2027, 5, 2))
+    plans = imp.run([], repo, now=dt.datetime(2027, 5, 2, 10, 0))
     congresses = pbook.load_congresses(repo)
     assert congresses[-1] == {
         "id": "2027-Krakow", "name": "LYMEC Congress 2027", "city": "Krakow",

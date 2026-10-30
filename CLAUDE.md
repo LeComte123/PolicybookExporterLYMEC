@@ -47,7 +47,8 @@ resolution_status_list.csv  the Bureau's status list: every Policy Book number, 
 categories.yml            the 9 Policy Book chapters {id, chapter, title, order, last_number}
 imports/                  upload inbox: <congress>.csv (+ <congress>.pdf), only files directly in it are imported
 imports/migration/        material for the one-time migration (phase 6): the Vienna Policy Book (PDF; .docx follows)
-imported/                every imported upload, kept for the record (never deleted; same name again -> _2, _3)
+imported/<YYYY-MM-DD-HH-MM>_<congress>/  every imported upload, kept for the record (never deleted); one folder
+                          per import, time of the import in Brussels time (Europe/Brussels; tzdata), _2 within one minute
 templates/                resolution.tex, policybook.tex (pandoc templates), lymec.latex (shared look),
                           reference.docx (Word styles, made by scripts/make_reference_docx.py)
 assets/                   lymec_logo.png
@@ -128,8 +129,9 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
   adoption dates of its resolutions into the congress dates (last day).
 - Categories = the 9 Policy Book chapters. CSV categories are mapped by chapter number (they contain
   typos like "Chatper 3").
-- Uploads are never deleted: after an import they move from imports/ to imported/. A file whose
-  content is already in imported/ is not imported again (replaces SPEC's imports/processed.yml).
+- Uploads are never deleted: after an import they move from imports/ to imported/<YYYY-MM-DD-HH-MM>_<congress>/
+  (user's decision). A file whose content is already anywhere in imported/ is not imported again (replaces
+  SPEC's imports/processed.yml).
 - Submitters: organisations only, structured as `submitted_by` + `co_signers` (parsed from the
   "Submitted by:/Co-submitted by:/Co-signed by:" paragraphs; fallback: org in parentheses of the CSV
   Submitters column).
@@ -173,5 +175,5 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
   cross-checks. Run once, locally; the result is reviewed, then committed (the push publishes it).
 - Ids of migrated resolutions: <congress>-<number at migration>, e.g. 2018-Berlin-6.08 (no OpenSlides
   number); `source: migration`.
-- Afterwards (agreed): move imports/migration/* to imported/migration/ and delete the one-time
+- Afterwards (agreed): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and delete the one-time
   migration script (it stays in the git history).

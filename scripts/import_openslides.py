@@ -3,8 +3,9 @@
 Usage: uv run scripts/import_openslides.py [FILE ...] [--force] [--accepted-states "accepted,adopted"]
 
 Without FILE, every imports/<congress>.csv / .pdf is imported (imports/ is the upload inbox) and
-then moved to imported/ for the record. A file whose content is already in imported/ is not imported
-again. The congress id is the file name: 2026-Vilnius.csv -> 2026-Vilnius (year, dash, city in
+then moved to imported/<YYYY-MM-DD-HH-MM>_<congress>/ for the record (time of the import, Brussels
+time), so repeated uploads of a congress stay apart. A file whose content is already in imported/
+is not imported again. The congress id is the file name: 2026-Vilnius.csv -> 2026-Vilnius (year, dash, city in
 English); resolution files are named <Policy Book number>_<congress>-<motion number>.md.
 The CSV ("Export as CSV" in OpenSlides) is the main source: its Text column holds the motion text
 as HTML. The PDF is optional: next to a CSV it is only cross-checked (numbers and titles), on its
@@ -33,6 +34,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from rapidfuzz import fuzz, process
@@ -63,6 +65,7 @@ STATEMENT_RE = re.compile(
     re.I,
 )
 SUGGESTION_CUTOFF = 70
+TIMEZONE = ZoneInfo("Europe/Brussels")  # for the folder names in imported/
 # Fields kept from an existing file when it is re-imported with --force (they may have been curated).
 KEPT_ON_FORCE = ("number", "status", "superseded_by", "amends")
 
@@ -513,28 +516,32 @@ def sha256(path: Path) -> str:
 
 
 def archived_copy(path: Path, root: Path) -> Path | None:
-    """The file in imported/ with exactly the same content, if any."""
+    """The file in imported/ (any folder) with exactly the same content, if any."""
     digest = sha256(path)
-    return next((p for p in sorted((root / "imported").glob("*")) if p.is_file() and sha256(p) == digest), None)
+    return next((p for p in sorted((root / "imported").rglob("*")) if p.is_file() and sha256(p) == digest), None)
 
 
-def archive_upload(path: Path, root: Path) -> None:
-    """Move an uploaded file from imports/ to imported/, where it is kept for the record.
+def archive_folder(root: Path, congress: str, now: dt.datetime) -> Path:
+    """imported/<YYYY-MM-DD-HH-MM>_<congress>/, a new folder for every import of an upload."""
+    base = root / "imported" / f"{now:%Y-%m-%d-%H-%M}_{congress}"
+    folder, n = base, 2
+    while folder.exists():  # two imports of the same congress within one minute
+        folder, n = base.with_name(f"{base.name}_{n}"), n + 1
+    return folder
 
-    New content under a name that is already taken is stored as <name>_2, _3, ...; an identical
-    re-upload is already stored, so its copy in imports/ is just removed.
+
+def archive_upload(path: Path, root: Path, folder: Path | None) -> None:
+    """Move an uploaded file from imports/ into its folder in imported/, where it is kept for the record.
+
+    folder None: the file is identical to one imported before, so its copy in imports/ is just removed.
     """
     if path.parent.resolve() != (root / "imports").resolve():
         return  # files given on the command line from elsewhere stay where they are
-    if archived_copy(path, root):
+    if folder is None:
         path.unlink()
         return
-    target_dir = root / "imported"
-    target_dir.mkdir(exist_ok=True)
-    target, n = target_dir / path.name, 2
-    while target.exists():
-        target, n = target_dir / f"{path.stem}_{n}{path.suffix}", n + 1
-    path.rename(target)
+    folder.mkdir(parents=True, exist_ok=True)
+    path.rename(folder / path.name)
 
 
 def append_congress_stub(root: Path, entry: dict) -> None:
@@ -639,8 +646,11 @@ def write_failure(root: Path, files: list[Path], message: str) -> None:
     (dist / "import-failed.md").write_text(text, encoding="utf-8")
 
 
-def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCEPTED_STATES, today: dt.date | None = None) -> list[Plan]:
+def run(
+    files: list[Path], root: Path, force: bool = False, accepted_states=ACCEPTED_STATES, now: dt.datetime | None = None
+) -> list[Plan]:
     """Plan every upload first; write only if no file-level problem was found. Raises ImportFailure."""
+    now = now or dt.datetime.now(TIMEZONE)
     resolutions = pbook.load_resolutions(root)
     ctx = {
         "categories": pbook.load_categories(root),
@@ -648,7 +658,7 @@ def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCE
         "resolutions": resolutions,
         "by_id": {r.id: r for r in resolutions},
         "accepted_states": accepted_states,
-        "today": today or dt.date.today(),
+        "today": now.date(),
     }
     try:
         ctx["status_list"] = status_list.load(root)
@@ -671,8 +681,12 @@ def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCE
             pbook.write_resolution(path, meta, body)
         if plan.congress_stub:
             append_congress_stub(root, plan.congress_stub)
-    for path in [p for plan in plans for p in plan.sources] + duplicates:
-        archive_upload(path, root)
+    for plan in plans:
+        folder = archive_folder(root, plan.congress, now)
+        for path in plan.sources:
+            archive_upload(path, root, folder)
+    for path in duplicates:
+        archive_upload(path, root, None)
     if plans:
         write_reports(root, plans)
     return plans

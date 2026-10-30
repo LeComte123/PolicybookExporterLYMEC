@@ -114,8 +114,10 @@ When it is done:
 
 - The new resolutions are on the download page and in a new release.
 - Each new resolution got the next free Policy Book number in its chapter (e.g. 4.27).
-- Your files moved from *imports* to the folder **imported**, where they are kept for the record.
-  Uploading the same file again does nothing.
+- Your files moved from *imports* to a new folder in **imported**, where they are kept for the
+  record. The folder is named after the date and time of the import and the congress, e.g.
+  `imported/2026-10-30-12-45_2026-Vilnius/`, so several uploads for one congress stay apart.
+  Uploading exactly the same file again does nothing.
 - The new resolutions were added to the status list.
 
 
@@ -345,7 +347,7 @@ number in the status list as well.
 | Folder or file | What it is for |
 |---|---|
 | `imports` | Put new OpenSlides exports here. The subfolder `imports/migration` holds material for moving the old Policy Book into this system once; please leave it alone. |
-| `imported` | Every uploaded export, kept for the record. |
+| `imported` | Every uploaded export, kept for the record: one folder per import, named date-time_congress. |
 | `resolutions` | One file per resolution. |
 | `resolution_status_list.csv` | The status list: every Policy Book number and whether it is in force or archived. |
 | `congresses.yml` | The list of congresses since 1992. |
