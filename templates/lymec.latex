@@ -1,12 +1,9 @@
 % LYMEC look shared by resolution.tex and policybook.tex (pandoc partial).
-% Fonts come from assets/fonts so local and CI builds look the same. Ligatures=TeXOff prints the text
-% exactly as written: TeX would otherwise turn every straight " into a closing quote.
-\setmainfont{FiraSans}[
-  Path=$fontdir$/, Extension=.otf, Ligatures=TeXOff,
-  UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic]
-\setsansfont{FiraSans}[
-  Path=$fontdir$/, Extension=.otf, Ligatures=TeXOff,
-  UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic, BoldItalicFont=*-BoldItalic]
+% Arial everywhere (PDF, Word, web page). It comes with macOS and Windows; on Linux install the Microsoft
+% core fonts (the workflow does). Ligatures=TeXOff prints the text exactly as written: TeX would otherwise
+% turn every straight " into a closing quote.
+\setmainfont{Arial}[Ligatures=TeXOff]
+\setsansfont{Arial}[Ligatures=TeXOff]
 
 % Colours of the LYMEC logo
 \definecolor{lymecblue}{HTML}{20A8E0}

@@ -1,0 +1,286 @@
+# LYMEC Policy Book
+
+This is where the LYMEC Policy Book is kept: every resolution adopted by a LYMEC congress. After a
+congress you upload the export from OpenSlides here. A few minutes later the new resolutions are in
+the Policy Book PDF, and each resolution can be downloaded as a PDF and a Word file.
+
+Everything is done in your web browser on GitHub. You do not need to install anything.
+
+- [Where to find the Policy Book](#where-to-find-the-policy-book)
+- [After a congress: add the new resolutions](#after-a-congress-add-the-new-resolutions)
+- [Add a new congress](#add-a-new-congress)
+- [When something goes wrong](#when-something-goes-wrong)
+- [Correcting a resolution](#correcting-a-resolution)
+- [What is in this repository](#what-is-in-this-repository)
+- [One-time setup (repository admin)](#one-time-setup-repository-admin)
+
+
+## Where to find the Policy Book
+
+**Download page:** https://lecomte123.github.io/PolicybookExporterLYMEC/
+(if the repository moves, the address is shown under *Settings → Pages*)
+
+There you find:
+
+- **LYMEC Policy Book**: all resolutions in force.
+- **LYMEC Policy Book, archive edition**: all resolutions, including those that are no longer in force.
+  Those are marked with a coloured banner ("Superseded by …" or "Archived").
+- **Every resolution on its own**, as PDF and as Word file, with a search box.
+
+> [Screenshot: the download page]
+
+Every update is also saved as a **release**. Click *Releases* on the right side of this page. Each
+release contains the two Policy Book PDFs, a zip file with all single resolutions, and a list of
+what changed. Older releases stay available, so you can always find an earlier version.
+
+
+## After a congress: add the new resolutions
+
+There are five steps. Together they take about 15 minutes.
+
+### 1. Check that the congress is in the list
+
+Open the file `congresses.yml`. If your congress is not listed, add it first, as described in
+[Add a new congress](#add-a-new-congress).
+
+### 2. Export the motions from OpenSlides
+
+In OpenSlides, open *Motions* and set two filters:
+
+- **State**: accepted
+- **Amendment**: is not an amendment
+
+Then export the motions that are left, once as **CSV** and once as **PDF**. The PDF is used to
+double-check the CSV. Choose exactly these settings:
+
+| Setting | CSV | PDF |
+|---|---|---|
+| Text version | **Final version** | **Final version** |
+| Content | **Title, Number, Text** | **Title, Number, Text** |
+| Line numbering | (not shown) | **None** |
+| Person-related fields | **Submitters** | **Submitters** |
+| Meta information | **State, Category** | **State, Category** |
+| Page layout | (not shown) | **Enforce page breaks** only |
+| Header and footer | (not shown) | nothing |
+| Notes and Comments | nothing | nothing |
+
+![OpenSlides export settings for the CSV file](docs/images/openslides-export-csv.png)
+
+![OpenSlides export settings for the PDF file](docs/images/openslides-export-pdf.png)
+
+### 3. Rename the files
+
+Name both files after the congress: **year, dash, city in English**. Example for the autumn
+congress 2026 in Vilnius:
+
+```
+2026-Vilnius.csv
+2026-Vilnius.pdf
+```
+
+- Write the city without accents, e.g. `2027-Krakow`. For an online congress write `2027-Online`.
+- Upper and lower case do not matter.
+- The name must match the congress in `congresses.yml` (the line `id:`).
+- Two congresses in the same city in one year: add Spring or Autumn, e.g. `2027-Brussels-Spring`.
+
+### 4. Upload the files
+
+1. On this page, open the folder **imports**.
+2. Click **Add file** → **Upload files**.
+3. Drag both files into the window.
+4. Scroll down and click **Commit changes**.
+
+> [Screenshot: "Add file → Upload files" in the imports folder]
+
+> [Screenshot: the "Commit changes" button]
+
+### 5. Wait, then check
+
+Click the **Actions** tab at the top. Your upload appears there:
+
+- yellow dot: still working (about 5 to 10 minutes)
+- green tick: done
+- red cross: something went wrong; an issue explains what to do (see below)
+
+> [Screenshot: the Actions tab with a green tick]
+
+When it is done:
+
+- The new resolutions are on the download page and in a new release.
+- Each new resolution got the next free Policy Book number in its chapter (e.g. 4.27).
+- Your files moved from *imports* to the folder **imported**, where they are kept for the record.
+  Uploading the same file again does nothing.
+
+
+## Add a new congress
+
+Do this before you upload the export of a congress, for example as soon as its dates are fixed.
+
+1. Open the file **congresses.yml**.
+2. Click the **pencil icon** (*Edit this file*).
+3. Go to the end of the file and add five lines like these, with the details of your congress:
+
+   ```yaml
+   - id: 2027-Krakow
+     name: LYMEC Spring Congress 2027
+     city: Krakow
+     date_start: 2027-04-23
+     date_end: 2027-04-25
+   ```
+
+   - `id`: year, dash, city in English. This is also the name of the upload file (`2027-Krakow.csv`).
+   - `name`: the name as it should appear in the Policy Book.
+   - `date_start`, `date_end`: first and last day of the congress, written year-month-day.
+   - Keep the layout exactly: the first line starts with a dash and a space, the other four lines
+     with two spaces.
+4. Click **Commit changes**.
+
+The new resolutions get the last day of the congress as their adoption date.
+
+**If you forget this:** the import still works. The congress is added to `congresses.yml`
+automatically, with the name "LYMEC Congress 2027" and the upload day as both dates. An issue
+"New congress: 2027-Krakow" reminds you to correct them. Open `congresses.yml` as above, correct
+the name and the two dates of that entry and click **Commit changes**. The adoption dates of the
+new resolutions are then corrected automatically.
+
+
+## When something goes wrong
+
+If there is a problem, a message appears under the **Issues** tab. It says what is wrong and what to
+do. You get an email about it if you watch this repository (see
+[One-time setup](#one-time-setup-repository-admin)). There are four kinds:
+
+**"Import failed: …"**
+: Nothing was imported and the Policy Book online is unchanged. Typical reasons: the file name is
+  wrong, or the CSV and the PDF do not belong together. Correct the file and upload it again
+  with the same name; it replaces the old one. If the corrected file has a different name, delete
+  the wrong file from the *imports* folder (open the file → **⋯** menu → **Delete file**).
+
+**"Import incomplete: …"**
+: Most motions were imported and published, but some were not. Usually several amendments in
+  OpenSlides change the same line of a motion, so it is unclear what the final text is. The message
+  lists the motions. Open each one in OpenSlides, create a modified final version that resolves the
+  amendments, export again and upload the new file with the same name. Motions that are already in
+  the Policy Book are skipped. Close the issue when everything is imported.
+
+**"New congress: …"**
+: The upload belonged to a congress that was not in `congresses.yml`. See
+  [If you forget this](#add-a-new-congress).
+
+**"Publishing failed"**
+: Something in a resolution file is not right, often after a correction by hand. The message names
+  the file and what to change.
+
+If the same problem happens again, it is added as a comment to the open issue instead of a new issue.
+
+> [Screenshot: an "Import failed" issue]
+
+
+## Correcting a resolution
+
+Each resolution is one file in the folder **resolutions**. The file name starts with the Policy
+Book number, so the folder is sorted like the Policy Book:
+
+```
+4.27_2026-Vilnius-16.md
+```
+
+- `4.27`: the Policy Book number
+- `2026-Vilnius-16`: the congress and the motion number in OpenSlides. This part never changes, even
+  if the resolution gets a new Policy Book number. It is shown as "Reference" in the PDF.
+
+To change a resolution:
+
+1. Open its file.
+2. Click the **pencil icon** (*Edit this file*).
+3. Make the change.
+4. Click **Commit changes**.
+
+The Policy Book is rebuilt automatically, just like after an upload.
+
+> [Screenshot: the pencil icon on a resolution file]
+
+The top of each file, between the two `---` lines, holds the information about the resolution.
+Below it is the text of the resolution.
+
+```yaml
+---
+id: 2026-Vilnius-16
+number: '4.27'
+title: 'Deregulate to Liberate: Making Life Affordable Again in Europe'
+congress: 2026-Vilnius
+adopted: 2026-10-25
+category: economy
+status: in_force
+replaces:
+- 2019-Brussels-90
+superseded_by: null
+amends: []
+submitted_by:
+- Julis
+co_signers:
+- Svensk Ungdom (SU)
+- LHG
+openslides_number: '16'
+source: openslides
+---
+```
+
+| Line | Meaning |
+|---|---|
+| `id` | Congress and motion number, as in the file name. Do not change it. |
+| `number` | Policy Book number. Keep the quotes: `'4.27'`. |
+| `title` | Title. Keep the quotes if there are any. |
+| `congress` | The congress, as in `congresses.yml`. |
+| `adopted` | Date of adoption, written `2026-10-25`. |
+| `category` | The chapter. The names are listed in `categories.yml`. |
+| `status` | `in_force`, `superseded` (replaced by a newer resolution), `archived` (no longer in force by decision of a congress) or `expired`. Only `in_force` resolutions are in the Policy Book; all are in the archive edition. |
+| `replaces` | Resolutions that this one replaces. |
+| `superseded_by` | Filled in automatically, do not edit. |
+| `amends` | Resolutions that this one changes. |
+| `submitted_by`, `co_signers` | Organisations. Never names of people. |
+
+Lists (`replaces`, `amends`, `submitted_by`, `co_signers`) have one entry per line, each starting
+with a dash and a space. An empty list is written `[]`.
+
+**This resolution replaces an older one.** Open the **new** resolution and write the Policy Book
+number of the old one under `replaces`, in quotes. Replace `replaces: []` with:
+
+```yaml
+replaces:
+- '6.03'
+```
+
+After you click *Commit changes*, the number is replaced by the old resolution's reference (e.g.
+`2023-Riga-07`), and the old resolution is marked as superseded and moves to the archive edition.
+`amends` works the same way.
+
+**A resolution is no longer in force, without a replacement.** Change its `status` to `archived`.
+
+**A resolution gets a new number** (for example when the numbers of a chapter are closed up after
+resolutions were archived). Change its `number`. The file is renamed automatically. A number can only
+be used once among the resolutions in force; archived resolutions keep their old number.
+
+**Congress names and dates** are in the file `congresses.yml`. Edit them the same way.
+
+
+## What is in this repository
+
+| Folder or file | What it is for |
+|---|---|
+| `imports` | Put new OpenSlides exports here. The subfolder `imports/migration` holds material for moving the old Policy Book into this system once; please leave it alone. |
+| `imported` | Every uploaded export, kept for the record. |
+| `resolutions` | One file per resolution. |
+| `congresses.yml` | The list of congresses. |
+| `categories.yml` | The nine chapters of the Policy Book. |
+| `docs` | Pictures for this guide. |
+| everything else | The technical parts. Notes for developers are in `CLAUDE.md`. |
+
+
+## One-time setup (repository admin)
+
+1. *Settings → Pages → Build and deployment → Source*: choose **GitHub Actions**.
+2. Do not protect the `main` branch with "Require a pull request before merging". The automation
+   saves imported resolutions directly to `main`.
+3. Everyone who should be told about problems or new versions: click **Watch → Custom** at the
+   top of this page and tick **Issues** (problems) and **Releases** (new Policy Book versions).

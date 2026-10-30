@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import unicodedata
 from pathlib import Path
 
 import frontmatter
@@ -11,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 
-STATUSES = ("in_force", "repealed", "superseded", "expired")
+STATUSES = ("in_force", "archived", "superseded", "expired")
 SOURCES = ("openslides", "migration")
 
 # Order of the front matter fields when a resolution file is written.
@@ -35,7 +36,8 @@ REQUIRED_FIELDS = ("id", "number", "title", "congress", "adopted", "category", "
 LIST_FIELDS = ("replaces", "amends", "submitted_by", "co_signers")
 
 NUMBER_RE = re.compile(r"^(\d)\.(\d{2,3})$")
-CONGRESS_ID_RE = re.compile(r"^\d{4}-[A-Z0-9]{2,8}$")
+# Congress id: year, dash, city in English, e.g. 2026-Vilnius, 1996-Il-Ciocco, 2027-Online-Spring.
+CONGRESS_ID_RE = re.compile(r"^\d{4}-[A-Z][A-Za-z]*(-[A-Z][A-Za-z]*)*$")
 
 
 class Resolution:
@@ -49,6 +51,10 @@ class Resolution:
     @property
     def id(self) -> str:
         return str(self.meta.get("id", ""))
+
+    @property
+    def number(self) -> str:
+        return str(self.meta.get("number", ""))
 
     def save(self) -> None:
         write_resolution(self.path, self.meta, self.body)
@@ -74,6 +80,23 @@ def load_congresses(root: Path = ROOT) -> list[dict]:
     return load_yaml_list(root / "congresses.yml")
 
 
+def file_name(meta: dict) -> str:
+    """<Policy Book number>_<id>.md, e.g. 4.27_2026-Vilnius-16.md: sorted by number, and the id part
+    stays the same when the resolution is renumbered."""
+    return f"{meta['number']}_{meta['id']}.md"
+
+
+def resolution_path(root: Path, meta: dict) -> Path:
+    return resolutions_dir(root) / file_name(meta)
+
+
+def congress_id(text: str) -> str:
+    """Normalise a congress id typed by a person: '2026-vilnius' / '2026 Kraków' -> '2026-Vilnius' / '2026-Krakow'."""
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    parts = [part for part in re.split(r"[-_\s]+", text.strip()) if part]
+    return "-".join(part[:1].upper() + part[1:].lower() if not part.isdigit() else part for part in parts)
+
+
 def resolution_paths(root: Path = ROOT) -> list[Path]:
     return sorted(resolutions_dir(root).glob("*.md"))
 
@@ -92,15 +115,22 @@ def load_resolutions(root: Path = ROOT) -> list[Resolution]:
     return [load_resolution(path) for path in resolution_paths(root)]
 
 
-def dump_front_matter(meta: dict) -> str:
-    """Serialise front matter in FIELD_ORDER (unknown fields last), deterministic.
+class _PlainDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data):
+        return True  # never write &id001 / *id001 when two fields hold the same value
 
-    Lists are written one item per line and nothing is wrapped, so the files are easy to edit
-    in the GitHub web editor.
-    """
+
+def dump_yaml(data) -> str:
+    """YAML as people write it: in the given order, lists one item per line, nothing wrapped, no aliases.
+    Easy to edit in the GitHub web editor."""
+    return yaml.dump(data, Dumper=_PlainDumper, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**6)
+
+
+def dump_front_matter(meta: dict) -> str:
+    """Serialise front matter in FIELD_ORDER (unknown fields last), deterministic."""
     ordered = {key: meta[key] for key in FIELD_ORDER if key in meta}
     ordered.update({key: value for key, value in meta.items() if key not in ordered})
-    return yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True, default_flow_style=False, width=10**6)
+    return dump_yaml(ordered)
 
 
 def write_resolution(path: Path, meta: dict, body: str) -> None:

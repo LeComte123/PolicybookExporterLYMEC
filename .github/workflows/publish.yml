@@ -1,0 +1,162 @@
+# Publish the LYMEC Policy Book: import uploaded OpenSlides exports, check all resolutions, build the
+# PDFs and Word files, save the new resolutions to main, create a GitHub Release and update the download
+# page (GitHub Pages). Runs on every push to main that touches the paths below, or by hand (Actions tab).
+#
+# Everything is one job: a commit pushed with GITHUB_TOKEN does not start another workflow run.
+# The build runs before anything is committed, so a failed import, check or build changes nothing and
+# publishes nothing; instead an issue explains what to do.
+name: Publish Policy Book
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "imports/**"
+      - "resolutions/**"
+      - "congresses.yml"
+      - "categories.yml"
+      - "templates/**"
+      - "assets/**"
+      - "scripts/**"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # commit resolutions, move processed inputs to imported/, create releases
+  issues: write     # open "Import failed" issues
+  pages: write      # deploy GitHub Pages
+  id-token: write   # required by actions/deploy-pages
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # pandoc + TeX Live with KOMA-Script. Templates use pandoc's LaTeX partials: test locally with a
+    # pandoc version that has the same partials before changing this tag.
+    container: pandoc/extra:3.11.0.0-debian
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Install git, GitHub CLI and the Arial font
+        run: |
+          sed -i 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources
+          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            git gh ca-certificates fontconfig ttf-mscorefonts-installer > /dev/null
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # history and tags, to compare with the last release
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Install Python packages
+        run: uv sync --frozen --no-dev
+
+      - name: Import uploaded OpenSlides exports
+        run: uv run scripts/import_openslides.py
+
+      - name: Check resolutions
+        run: uv run scripts/validate.py --fix 2>&1 | tee "$RUNNER_TEMP/check.log"
+
+      - name: Anything to publish?
+        id: content
+        run: |
+          if compgen -G "resolutions/*.md" > /dev/null; then
+            echo "resolutions=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "No resolutions yet: nothing to build or publish."
+          fi
+
+      - name: Build PDFs, Word files and the download page
+        if: steps.content.outputs.resolutions == 'yes'
+        run: uv run scripts/build.py 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Save imported resolutions to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to save."
+            exit 0
+          fi
+          message="Apply automatic fixes (validate.py --fix)"
+          if [ -f dist/import-report.md ]; then
+            message="Import $(sed -n 's/^# Import //p' dist/import-report.md | paste -sd ' ' -)"
+          fi
+          git commit -q -m "$message"
+          git push origin HEAD:main
+
+      - name: Create release
+        if: steps.content.outputs.resolutions == 'yes'
+        run: |
+          last=$(git describe --tags --abbrev=0 --match 'policybook-*' 2>/dev/null || true)
+          if [ -n "$last" ] && git diff --quiet "$last" HEAD -- resolutions congresses.yml categories.yml templates assets; then
+            echo "Nothing changed since release $last: no new release."
+            exit 0
+          fi
+          tag=policybook-$(date -u +%F)
+          n=2
+          while git rev-parse -q --verify "refs/tags/$tag" > /dev/null; do
+            tag=policybook-$(date -u +%F)-$n
+            n=$((n + 1))
+          done
+          notes=$RUNNER_TEMP/notes.md
+          if [ -f dist/import-report.md ]; then cat dist/import-report.md; else echo "No new import."; fi > "$notes"
+          if [ -n "$last" ]; then
+            printf '\n# Resolution files changed since %s\n\n' "$last" >> "$notes"
+            git diff --name-status "$last" HEAD -- resolutions | awk '
+              { sub(/^resolutions\//, "", $2); sub(/\.md$/, "", $2)
+                print "- " ($1 == "A" ? "added" : $1 == "D" ? "removed" : "changed") ": " $2 }' >> "$notes"
+          fi
+          python3 -m zipfile -c dist/LYMEC_Policy_Book_resolutions.zip dist/resolutions
+          gh release create "$tag" --target "$(git rev-parse HEAD)" \
+            --title "LYMEC Policy Book, $(date -u '+%-d %B %Y')" --notes-file "$notes" \
+            dist/LYMEC_Policy_Book.pdf dist/LYMEC_Policy_Book_Archive.pdf dist/LYMEC_Policy_Book_resolutions.zip
+
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.content.outputs.resolutions == 'yes'
+        with:
+          path: site
+
+      - id: deployment
+        if: steps.content.outputs.resolutions == 'yes'
+        uses: actions/deploy-pages@v5
+
+      - name: Report motions that were not imported, and new congresses
+        run: |
+          for issue in dist/import-errors.md dist/new-congress.md; do
+            if [ -f "$issue" ]; then scripts/open_issue.sh "$issue"; fi
+          done
+
+      - name: Open an issue if something went wrong
+        if: failure()
+        run: |
+          issue=dist/import-failed.md   # written by the importer when an upload could not be imported
+          if [ ! -f "$issue" ]; then
+            issue=$RUNNER_TEMP/issue.md
+            {
+              echo "# Publishing failed"
+              echo
+              echo "The Policy Book could not be published. The messages below say what is wrong and what to do."
+              echo "If they point to a resolution file, correct it in the GitHub editor; saving it starts a new run."
+              echo
+              echo '```'
+              tail -n 40 "$RUNNER_TEMP/check.log" "$RUNNER_TEMP/build.log" 2> /dev/null || echo "See the log of the run."
+              echo '```'
+            } > "$issue"
+          fi
+          scripts/open_issue.sh "$issue"

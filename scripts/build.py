@@ -1,13 +1,14 @@
 """Build the downloads: one PDF + DOCX per resolution, the two Policy Book editions and the download page.
 
-Usage: uv run scripts/build.py [--only ID] [--edition current|archive|all] [--date YYYY-MM-DD]
+Usage: uv run scripts/build.py [--only RESOLUTION] [--edition current|archive|all] [--date YYYY-MM-DD]
 
 Without options everything is built:
-  dist/resolutions/<id>.pdf and .docx
+  dist/resolutions/<number>_<id>.pdf and .docx (named like the resolution file)
   dist/LYMEC_Policy_Book.pdf          resolutions in force
   dist/LYMEC_Policy_Book_Archive.pdf  all resolutions, a banner on those no longer in force
   site/                               download page with all files, ready for GitHub Pages
---only ID builds just that resolution's PDF and DOCX; --edition builds just that Policy Book.
+--only builds just that resolution's PDF and DOCX (give its number, id or file name);
+--edition builds just that Policy Book.
 Nothing is built if validate.py reports a problem.
 """
 
@@ -34,7 +35,7 @@ EDITIONS = {  # file name, subtitle on the cover, short name in the footer
     "current": ("LYMEC_Policy_Book.pdf", "Resolutions in force", "Resolutions in force"),
     "archive": ("LYMEC_Policy_Book_Archive.pdf", "Archive edition: all resolutions, including those no longer in force", "Archive edition"),
 }
-STATUS_LABELS = {"in_force": "In force", "repealed": "Repealed", "superseded": "Superseded", "expired": "Expired"}
+STATUS_LABELS = {"in_force": "In force", "archived": "Archived", "superseded": "Superseded", "expired": "Expired"}
 MD_SPECIAL_RE = re.compile(r"([\\`*_{}\[\]<>#!|$@~^])")
 
 
@@ -58,7 +59,6 @@ class Context:
                 self.amended_by.setdefault(target, []).append(res.id)
         self.templates = root / "templates"
         self.logo = root / "assets" / "lymec_logo.png"
-        self.fontdir = root / "assets" / "fonts"
         self.dist = root / "dist"
 
 
@@ -140,6 +140,11 @@ def run_pandoc(args: list, ctx: Context, input_text: str, what: str) -> str:
     except FileNotFoundError:
         raise BuildError("pandoc is not installed. Install it (macOS: brew install pandoc) and build again.") from None
     if result.returncode != 0:
+        if 'The font "Arial" cannot be found' in result.stderr:
+            raise BuildError(
+                "The font Arial is not installed on this computer. Install the Microsoft core fonts "
+                "(Debian/Ubuntu: apt install ttf-mscorefonts-installer) and build again."
+            )
         tail = "\n".join(result.stderr.strip().splitlines()[-15:])
         raise BuildError(f"Building {what} failed:\n{tail}")
     return result.stdout
@@ -163,7 +168,6 @@ def template_args(ctx: Context, template: str, meta: dict, tmp: Path) -> list:
         "--template", ctx.templates / template,
         "--pdf-engine=xelatex",
         "-V", f"logo={ctx.logo}",
-        "-V", f"fontdir={ctx.fontdir}",
         "-V", "lang=en-GB",
     ]  # fmt: skip
 
@@ -191,7 +195,7 @@ def build_single(ctx: Context, res: pbook.Resolution, body: str, out_dir: Path) 
     }
     with tempfile.TemporaryDirectory() as tmp:
         args = template_args(ctx, "resolution.tex", meta, Path(tmp))
-        run_pandoc([*args, "-o", out_dir / f"{res.id}.pdf"], ctx, body, f"the PDF of {res.id}")
+        run_pandoc([*args, "-o", out_dir / f"{res.path.stem}.pdf"], ctx, body, f"the PDF of {res.path.stem}")
 
     table = ["| | |", "|---|---|"] + [f"| {name} | {value} |" for name, value in facts(ctx, res, set())]
     table.append(f"| Reference | {res.id} |")
@@ -199,8 +203,8 @@ def build_single(ctx: Context, res: pbook.Resolution, body: str, out_dir: Path) 
     if text := banner(ctx, res, set()):
         parts.append(f"**{text}**")
     parts.append(shift_headings(body, 1))
-    args = ["-f", "markdown-smart", "--reference-doc", ctx.templates / "reference.docx", "-o", out_dir / f"{res.id}.docx"]
-    run_pandoc(args, ctx, "\n\n".join(parts), f"the DOCX of {res.id}")
+    args = ["-f", "markdown-smart", "--reference-doc", ctx.templates / "reference.docx", "-o", out_dir / f"{res.path.stem}.docx"]
+    run_pandoc(args, ctx, "\n\n".join(parts), f"the DOCX of {res.path.stem}")
 
 
 # ---------------------------------------------------------------- the Policy Book
@@ -299,7 +303,7 @@ def build_site(ctx: Context) -> None:
             f'<tr{css}><td>{html.escape(meta["number"])}</td>'
             f"<td>{html.escape(meta['title'])}</td><td>{category['chapter']}</td>"
             f"<td>{html.escape(congress_name(ctx, meta['congress']))}</td><td>{STATUS_LABELS[meta['status']]}</td>"
-            f'<td><a href="resolutions/{res.id}.pdf">PDF</a> · <a href="resolutions/{res.id}.docx">Word</a></td></tr>'
+            f'<td><a href="resolutions/{res.path.stem}.pdf">PDF</a> · <a href="resolutions/{res.path.stem}.docx">Word</a></td></tr>'
         )
     page = SITE_TEMPLATE.format(
         build_date=format_date(ctx.build_date),
@@ -321,7 +325,7 @@ SITE_TEMPLATE = """<!doctype html>
 <title>LYMEC Policy Book</title>
 <style>
   :root {{ --violet: #5a5fb5; --blue: #20a8e0; --pink: #e80088; --grey: #5f6368; }}
-  body {{ font-family: "Fira Sans", Arial, sans-serif; margin: 0 auto; max-width: 1100px; padding: 24px 16px; color: #222; background: #fff; }}
+  body {{ font-family: Arial, Helvetica, sans-serif; margin: 0 auto; max-width: 1100px; padding: 24px 16px; color: #222; background: #fff; }}
   header {{ display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }}
   header img {{ height: 72px; }}
   h1 {{ color: var(--violet); margin: 0; }}
@@ -347,7 +351,7 @@ SITE_TEMPLATE = """<!doctype html>
 </header>
 <div class="books">
   <a href="{current}"><strong>Policy Book (PDF)</strong>{count} resolutions in force</a>
-  <a href="{archive}"><strong>Archive edition (PDF)</strong>all {total} resolutions, including repealed and superseded ones</a>
+  <a href="{archive}"><strong>Archive edition (PDF)</strong>all {total} resolutions, including archived and superseded ones</a>
 </div>
 <input type="search" id="search" placeholder="Search by number, title, congress …" aria-label="Search resolutions">
 <label><input type="checkbox" id="show-archived"> Show resolutions that are no longer in force</label>
@@ -382,6 +386,20 @@ SITE_TEMPLATE = """<!doctype html>
 # ---------------------------------------------------------------- main
 
 
+def find(ctx: Context, text: str) -> list[pbook.Resolution]:
+    """The resolution meant by a number (the one in force), an id or a file name."""
+    text = text.removesuffix(".md")
+    matches = [r for r in ctx.resolutions if text in (r.id, r.path.stem)]
+    matches = matches or [r for r in ctx.resolutions if r.number == text and r.meta["status"] == "in_force"]
+    matches = matches or [r for r in ctx.resolutions if r.number == text]
+    if len(matches) != 1:
+        raise BuildError(
+            f"There is no single resolution '{text}'. Give its number (4.27), its id (2026-Vilnius-16) "
+            "or its file name (4.27_2026-Vilnius-16)."
+        )
+    return matches
+
+
 def run(root: Path, only: str | None = None, edition: str | None = None, build_date: dt.date | None = None) -> list[Path]:
     """Build and return the files produced. Raises BuildError."""
     report = validate.validate(root)
@@ -390,10 +408,8 @@ def run(root: Path, only: str | None = None, edition: str | None = None, build_d
     ctx = Context(root, build_date or dt.date.today())
     if not ctx.resolutions:
         raise BuildError("There are no resolutions yet. Import an OpenSlides export first.")
-    if only and only not in ctx.by_id:
-        raise BuildError(f"There is no resolution '{only}'. Use the id, which is the file name without .md, e.g. 2026-VNO-05.")
+    selected = find(ctx, only) if only else ctx.resolutions
 
-    selected = [ctx.by_id[only]] if only else ctx.resolutions
     if not only and edition is None and (ctx.dist / "resolutions").exists():
         shutil.rmtree(ctx.dist / "resolutions")  # no files of deleted resolutions left behind
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
@@ -413,7 +429,7 @@ def run(root: Path, only: str | None = None, edition: str | None = None, build_d
 
     produced = [ctx.dist / EDITIONS[e][0] for e in editions]
     if edition is None:
-        produced += [ctx.dist / "resolutions" / f"{r.id}.{ext}" for r in selected for ext in ("pdf", "docx")]
+        produced += [ctx.dist / "resolutions" / f"{r.path.stem}.{ext}" for r in selected for ext in ("pdf", "docx")]
     if not only and edition is None:
         build_site(ctx)
         produced.append(root / "site" / "index.html")
@@ -422,7 +438,7 @@ def run(root: Path, only: str | None = None, edition: str | None = None, build_d
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the Policy Book PDFs, the per-resolution files and the download page.")
-    parser.add_argument("--only", metavar="ID", help="build only this resolution's PDF and DOCX")
+    parser.add_argument("--only", metavar="RESOLUTION", help="build only this resolution's PDF and DOCX (number, id or file name)")
     parser.add_argument("--edition", choices=["current", "archive", "all"], help="build only this Policy Book edition")
     parser.add_argument("--date", type=dt.date.fromisoformat, help="build date shown in the documents (default: today)")
     parser.add_argument("--root", type=Path, default=pbook.ROOT, help=argparse.SUPPRESS)

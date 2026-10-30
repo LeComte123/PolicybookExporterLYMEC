@@ -2,7 +2,7 @@
 
 Usage: uv run scripts/make_reference_docx.py
 
-Only fonts and colours are changed: Arial (available on every computer, unlike Fira Sans) and the
+Only fonts and colours are changed: Arial (as in the PDFs; available on every computer) and the
 violet of the LYMEC logo for headings and the title. Run again after changing the values below.
 """
 

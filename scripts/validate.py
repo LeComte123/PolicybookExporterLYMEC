@@ -2,8 +2,12 @@
 
 Usage: uv run scripts/validate.py [--fix]
 
---fix writes derived fields back: if A replaces B, then B gets status 'superseded' and
-superseded_by A (and the other way round: B.superseded_by = A adds B to A.replaces).
+--fix repairs what can be derived, so people can edit files in the GitHub web editor:
+- a Policy Book number written in replaces/amends/superseded_by (6.03) becomes the id;
+- if A replaces B, then B gets status 'superseded' and superseded_by A (and the other way round:
+  B.superseded_by = A adds B to A.replaces);
+- a file whose number was changed is renamed to <number>_<id>.md;
+- an adoption date outside the dates of its congress is set to the last day of the congress.
 Exit code 1 if any problem is left.
 """
 
@@ -51,8 +55,9 @@ def check_categories(root: Path, report: Report) -> dict[str, int]:
     return categories
 
 
-def check_congresses(root: Path, report: Report) -> set[str]:
-    congresses = set()
+def check_congresses(root: Path, report: Report) -> dict[str, dict]:
+    """Return {congress id: entry}."""
+    congresses = {}
     for i, con in enumerate(pbook.load_congresses(root), start=1):
         cid = con.get("id")
         if not cid or not con.get("name"):
@@ -60,10 +65,10 @@ def check_congresses(root: Path, report: Report) -> set[str]:
             continue
         cid = str(cid)
         if not pbook.CONGRESS_ID_RE.match(cid):
-            report.error(f"congresses.yml: id '{cid}' should look like 2026-VNO (year, dash, city code in capitals).")
+            report.error(f"congresses.yml: id '{cid}' should look like 2026-Vilnius (year, dash, city in English).")
         if cid in congresses:
             report.error(f"congresses.yml: id '{cid}' appears twice. Remove one of the entries.")
-        congresses.add(cid)
+        congresses[cid] = con
         start, end = con.get("date_start"), con.get("date_end")
         if start is None or end is None:
             report.warn(f"congresses.yml: '{cid}' has no date_start/date_end yet. Add the congress dates.")
@@ -75,7 +80,7 @@ def check_congresses(root: Path, report: Report) -> set[str]:
     return congresses
 
 
-def check_resolution(res: pbook.Resolution, categories: dict, congresses: set, report: Report) -> None:
+def check_resolution(res: pbook.Resolution, categories: dict, congresses: dict, report: Report) -> None:
     name = f"resolutions/{res.path.name}"
     meta = res.meta
     if not meta:
@@ -88,14 +93,14 @@ def check_resolution(res: pbook.Resolution, categories: dict, congresses: set, r
     for field in pbook.LIST_FIELDS:
         value = meta.get(field, [])
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-            report.error(f"{name}: '{field}' must be a list, e.g. '{field}: [2026-VNO-05]' or '{field}: []'.")
+            report.error(f"{name}: '{field}' must be a list: one entry per line starting with '- ', or '{field}: []'.")
     for field in meta:
         if field not in pbook.FIELD_ORDER:
             report.warn(f"{name}: unknown field '{field}' is ignored. Check the spelling.")
 
-    rid = meta.get("id")
-    if rid and str(rid) != res.path.stem:
-        report.error(f"{name}: id '{rid}' does not match the filename. Rename the file to {rid}.md or set id: {res.path.stem}.")
+    rid, congress = meta.get("id"), meta.get("congress")
+    if rid and congress and not str(rid).startswith(f"{congress}-"):
+        report.error(f"{name}: id '{rid}' must start with its congress, e.g. {congress}-05 (congress, dash, motion number).")
 
     number, category = meta.get("number"), meta.get("category")
     if number is not None:
@@ -111,7 +116,6 @@ def check_resolution(res: pbook.Resolution, categories: dict, congresses: set, r
 
     if category is not None and category not in categories:
         report.error(f"{name}: category '{category}' does not exist. Use one of: {', '.join(categories)}.")
-    congress = meta.get("congress")
     if congress is not None and str(congress) not in congresses:
         report.error(f"{name}: congress '{congress}' is not in congresses.yml. Add it there or fix the congress field.")
     if meta.get("status") is not None and meta["status"] not in pbook.STATUSES:
@@ -130,6 +134,8 @@ def check_resolution(res: pbook.Resolution, categories: dict, congresses: set, r
 
 
 def check_uniques(resolutions: list[pbook.Resolution], report: Report) -> None:
+    """Ids are unique; numbers are unique among the resolutions in force (renumbering may give the
+    number of an archived resolution to another one)."""
     seen_ids: dict[str, str] = {}
     seen_numbers: dict[str, str] = {}
     for res in resolutions:
@@ -137,13 +143,107 @@ def check_uniques(resolutions: list[pbook.Resolution], report: Report) -> None:
         if rid and rid in seen_ids:
             report.error(f"id '{rid}' is used by both {seen_ids[rid]} and {res.path.name}. Each id must be unique.")
         seen_ids.setdefault(rid, res.path.name)
-        if isinstance(number, str):
+        if isinstance(number, str) and res.meta.get("status") == "in_force":
             if number in seen_numbers:
                 report.error(
-                    f"number {number} is used by both {seen_numbers[number]} and {res.path.name}. "
+                    f"number {number} is used by two resolutions in force: {seen_numbers[number]} and {res.path.name}. "
                     "Give one of them the next free number in its chapter."
                 )
             seen_numbers.setdefault(number, res.path.name)
+
+
+def as_number(value) -> str | None:
+    """A Policy Book number written where an id is expected: '6.03', or 6.03 without quotes (YAML reads a float)."""
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    if isinstance(value, str) and pbook.NUMBER_RE.match(value.strip()):
+        return value.strip()
+    return None
+
+
+def resolve_number_references(resolutions: list[pbook.Resolution], report: Report, fix: bool) -> set[str]:
+    """Replace Policy Book numbers in replaces/amends/superseded_by by ids (in memory; saved with --fix).
+
+    A number means the resolution in force with that number, else the only resolution with it.
+    Returns the ids of the changed resolutions.
+    """
+    by_number: dict[str, list[pbook.Resolution]] = {}
+    for res in resolutions:
+        by_number.setdefault(res.number, []).append(res)
+
+    def target(number: str) -> pbook.Resolution | None:
+        found = by_number.get(number, [])
+        in_force = [r for r in found if r.meta.get("status") == "in_force"]
+        found = in_force or found
+        return found[0] if len(found) == 1 else None
+
+    changed = set()
+    for res in resolutions:
+        name = f"resolutions/{res.path.name}"
+        for field in ("replaces", "amends", "superseded_by"):
+            if field not in res.meta:
+                continue
+            value = res.meta[field]
+            items = value if isinstance(value, list) else [value]
+            new_items = []
+            for item in items:
+                number = as_number(item)
+                found = target(number) if number else None
+                if number and found is None:
+                    report.error(f"{name}: '{field}' points to number {number}, but no single resolution has that number. Check the number.")
+                    new_items.append(number)
+                elif found:
+                    new_items.append(found.id)
+                    if fix:
+                        report.fixed.append(f"{name}: {field} {number} written as its id {found.id}")
+                        changed.add(res.id)
+                    else:
+                        report.error(f"{name}: write {found.id} instead of {number} in '{field}' (validate.py --fix does this).")
+                else:
+                    new_items.append(item)
+            res.meta[field] = new_items if isinstance(value, list) else new_items[0]
+    return changed
+
+
+def check_file_names(resolutions: list[pbook.Resolution], report: Report, fix: bool) -> None:
+    """Files are named <number>_<id>.md; --fix renames them (e.g. after the number was changed)."""
+    for res in resolutions:
+        number, rid = res.meta.get("number"), res.meta.get("id")
+        if not (isinstance(number, str) and pbook.NUMBER_RE.match(number) and rid):
+            continue  # reported by check_resolution
+        expected = pbook.file_name(res.meta)
+        if res.path.name == expected:
+            continue
+        target = res.path.with_name(expected)
+        if fix and not target.exists():
+            res.path.rename(target)
+            report.fixed.append(f"resolutions/{res.path.name}: renamed to {expected} (number and id)")
+            res.path = target
+        else:
+            report.error(f"resolutions/{res.path.name}: the file name must be {expected} (number, _, id). Rename the file.")
+
+
+def check_adoption_dates(resolutions: list[pbook.Resolution], congresses: dict, report: Report, fix: bool) -> set[str]:
+    """The adoption date lies within the dates of the congress; --fix sets it to the last day.
+
+    This also corrects the placeholder date the importer uses for a congress that was not in
+    congresses.yml yet, as soon as the real dates are entered there.
+    """
+    changed = set()
+    for res in resolutions:
+        con = congresses.get(str(res.meta.get("congress")), {})
+        start, end = pbook.parse_date(con.get("date_start")), pbook.parse_date(con.get("date_end"))
+        adopted = pbook.parse_date(res.meta.get("adopted"))
+        if not (start and end and adopted) or start <= adopted <= end:
+            continue
+        msg = f"resolutions/{res.path.name}: adopted {adopted} is not within the dates of congress {res.meta['congress']} ({start} to {end})"
+        if fix:
+            res.meta["adopted"] = end
+            report.fixed.append(msg + f"; set to {end}")
+            changed.add(res.id)
+        else:
+            report.error(msg + ". Correct the date, or run validate.py --fix to use the last day of the congress.")
+    return changed
 
 
 def check_links(resolutions: list[pbook.Resolution], by_id: dict, report: Report) -> None:
@@ -157,7 +257,10 @@ def check_links(resolutions: list[pbook.Resolution], by_id: dict, report: Report
             if target == res.id:
                 report.error(f"{name}: '{field}' points to the resolution itself. Remove '{target}'.")
             elif target not in by_id:
-                report.error(f"{name}: '{field}' points to '{target}', which does not exist. Check the id (it is the filename without .md).")
+                report.error(
+                    f"{name}: '{field}' points to '{target}', which does not exist. Write the Policy Book number "
+                    "(e.g. '6.03') or the id (the file name after the _, e.g. 2026-Vilnius-05)."
+                )
 
 
 def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, report: Report, fix: bool) -> None:
@@ -177,7 +280,7 @@ def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, repor
         if len(new_ids) > 1:
             report.error(
                 f"resolutions/{old.path.name} is replaced by more than one resolution ({', '.join(sorted(new_ids))}). "
-                "Keep it in only one 'replaces' list and set superseded_by to that id."
+                "Keep it in only one 'replaces' list and set superseded_by to that resolution."
             )
             continue
         new = by_id[next(iter(new_ids))]
@@ -202,7 +305,7 @@ def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, repor
         if res.meta.get("status") == "superseded" and res.id not in replacers:
             report.error(
                 f"resolutions/{res.path.name}: status is 'superseded' but no resolution replaces it. "
-                "Set superseded_by to the id of the newer resolution, or change the status."
+                "Set superseded_by to the number or id of the newer resolution, or change the status."
             )
     for res in dirty.values():
         res.save()
@@ -221,10 +324,15 @@ def validate(root: Path = pbook.ROOT, fix: bool = False) -> Report:
             report.error(f"resolutions/{path.name}: {exc}. Compare the header with another resolution file.")
     report.checked = len(resolutions)
 
+    changed = resolve_number_references(resolutions, report, fix)
     for res in resolutions:
         check_resolution(res, categories, congresses, report)
     check_uniques(resolutions, report)
+    check_file_names(resolutions, report, fix)
+    changed |= check_adoption_dates(resolutions, congresses, report, fix)
     by_id = {res.id: res for res in resolutions if res.id}
+    for rid in changed:
+        by_id[rid].save()
     check_links(resolutions, by_id, report)
     derive_supersessions(resolutions, by_id, report, fix)
     return report
@@ -232,7 +340,7 @@ def validate(root: Path = pbook.ROOT, fix: bool = False) -> Report:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check the resolution database for errors.")
-    parser.add_argument("--fix", action="store_true", help="write derived superseded_by/status/replaces back to the files")
+    parser.add_argument("--fix", action="store_true", help="repair what can be derived (see the top of this file)")
     parser.add_argument("--root", type=Path, default=pbook.ROOT, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 

@@ -4,7 +4,8 @@ Usage: uv run scripts/import_openslides.py [FILE ...] [--force] [--accepted-stat
 
 Without FILE, every imports/<congress>.csv / .pdf is imported (imports/ is the upload inbox) and
 then moved to imported/ for the record. A file whose content is already in imported/ is not imported
-again. The congress id is the file name: 2026-VNO.csv -> 2026-VNO.
+again. The congress id is the file name: 2026-Vilnius.csv -> 2026-Vilnius (year, dash, city in
+English); resolution files are named <Policy Book number>_<congress>-<motion number>.md.
 The CSV ("Export as CSV" in OpenSlides) is the main source: its Text column holds the motion text
 as HTML. The PDF is optional: next to a CSV it is only cross-checked (numbers and titles), on its
 own its text is read with openslides_pdf.
@@ -12,7 +13,11 @@ own its text is read with openslides_pdf.
 Motions with unresolved colliding amendments are not imported but reported as import errors; the
 other motions of the file are imported. Problems with a whole file (wrong name, unreadable CSV,
 CSV and PDF disagree) stop the import before anything is written; exit code 1.
-Reports: dist/import-report.md (release notes) and, if motions were skipped, dist/import-errors.md.
+Reports: dist/import-report.md (release notes); dist/import-errors.md if motions were skipped and
+dist/import-failed.md if the import stopped. The last two are the texts of the GitHub issues the
+workflow opens: first line "# <issue title>", then the body. dist/new-congress.md is written when a
+congress was not in congresses.yml and a placeholder entry was added.
+Other files in imports/ (e.g. the migration material in imports/migration/) are not touched.
 """
 
 from __future__ import annotations
@@ -29,7 +34,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
-import yaml
 from rapidfuzz import fuzz, process
 
 import pbook
@@ -76,6 +80,7 @@ class Plan:
     congress: str
     sources: list[Path]
     writes: list[tuple[Path, dict, str]] = field(default_factory=list)
+    removals: list[Path] = field(default_factory=list)  # old files of re-imported resolutions that got a new number
     imported: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
@@ -276,6 +281,11 @@ def replaced_numbers(markdown: str) -> list[str]:
 # ---------------------------------------------------------------- planning one upload
 
 
+def uploads(root: Path) -> list[Path]:
+    """The OpenSlides exports waiting in imports/ (CSV and PDF files directly in it)."""
+    return [p for p in sorted((root / "imports").glob("*")) if p.is_file() and p.suffix.lower() in (".csv", ".pdf")]
+
+
 def find_sources(files: list[Path], root: Path) -> dict[str, list[Path]]:
     """Group the given files (or the new files in imports/) by congress id."""
     if files:
@@ -286,16 +296,16 @@ def find_sources(files: list[Path], root: Path) -> dict[str, list[Path]]:
             if sibling.exists() and sibling not in files:
                 paths.append(sibling)
     else:
-        paths = [p for p in sorted((root / "imports").glob("*")) if p.suffix.lower() in (".csv", ".pdf")]
+        paths = uploads(root)
     groups: dict[str, list[Path]] = {}
     for path in paths:
         if path.suffix.lower() not in (".csv", ".pdf"):
             raise ImportFailure(f"{path.name} is not a CSV or PDF file. Upload the OpenSlides export as .csv (and optionally .pdf).")
-        congress = path.stem.upper()
+        congress = pbook.congress_id(path.stem)
         if not pbook.CONGRESS_ID_RE.match(congress):
             raise ImportFailure(
-                f'The file name "{path.name}" must be the congress id, e.g. 2026-VNO.csv (year, dash, city code). '
-                "Rename the file and upload it again."
+                f'The file name "{path.name}" must be the year and the city of the congress, e.g. 2026-Vilnius.csv '
+                "(city in English, without accents). Rename the file and upload it again."
             )
         groups.setdefault(congress, []).append(path)
     return groups
@@ -325,12 +335,14 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
     congress_entry = next((c for c in ctx["congresses"] if str(c.get("id")) == congress), None)
     if congress_entry is None:
         today = ctx["today"]
-        congress_entry = {"id": congress, "name": f"LYMEC Congress {congress[:4]}", "city": None, "date_start": today, "date_end": today}
+        city = congress[5:].replace("-", " ")
+        congress_entry = {"id": congress, "name": f"LYMEC Congress {congress[:4]}", "city": city, "date_start": today, "date_end": today}
         plan.congress_stub = congress_entry
         ctx["congresses"].append(congress_entry)
         plan.notes.append(
-            f"Congress {congress} was new, so a placeholder entry was added to congresses.yml with today's date. "
-            "Open congresses.yml and fill in the name, city and dates."
+            f"Congress {congress} was not in congresses.yml, so it was added with the name \"{congress_entry['name']}\" "
+            "and today's date as placeholders. Correct the name and the dates in congresses.yml; the adoption dates "
+            "of its resolutions are then corrected automatically."
         )
     adopted = pbook.parse_date(congress_entry.get("date_end"))
     if adopted is None:
@@ -368,7 +380,6 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
             continue
 
         rid = motion_id(congress, motion.number)
-        path = pbook.resolutions_dir(root) / f"{rid}.md"
         existing = ctx["by_id"].get(rid)
         if existing and not force:
             plan.skipped.append(f"{label}: already in the database as {rid}, not changed (an admin can re-import it with --force).")
@@ -379,7 +390,7 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
         if not submitted:
             submitted = orgs_from_submitters(motion.submitters)
         if not submitted:
-            plan.notes.append(f"{label}: no submitting organisation found. Add it to submitted_by in {rid}.md.")
+            plan.notes.append(f"{label}: no submitting organisation found. Add it to submitted_by in the file of {rid}.")
         if not body.strip():
             plan.errors.append(f"{label} was not imported: its text is empty. Check the motion text in OpenSlides and export again.")
             continue
@@ -408,6 +419,9 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
                 meta["number"] = None  # moved to another chapter: needs a number there
         if not meta["number"]:
             meta["number"] = pbook.next_number(chapter, ctx["categories"], ctx["resolutions"])
+        path = pbook.resolution_path(root, meta)
+        if existing and existing.path != path:
+            plan.removals.append(existing.path)
         new = pbook.Resolution(path, meta, body)
         ctx["resolutions"] = [r for r in ctx["resolutions"] if r.id != rid] + [new]
         ctx["by_id"][rid] = new
@@ -420,13 +434,15 @@ def plan_upload(congress: str, sources: list[Path], root: Path, ctx: dict, force
 
 def add_replacements(new: pbook.Resolution, body: str, ctx: dict, plan: Plan) -> None:
     """Fill `replaces` from "This motion replaces: 6.03" and suggest similar older titles."""
-    by_number = {str(r.meta.get("number")): r for r in ctx["resolutions"] if r.id != new.id}
+    others = [r for r in ctx["resolutions"] if r.id != new.id]
+    # numbers of archived resolutions can be used again after a renumbering: the one in force wins
+    by_number = {r.number: r for r in sorted(others, key=lambda r: r.meta.get("status") == "in_force")}
     label = f"{new.meta['number']} ({new.id})"
     for number in replaced_numbers(body):
         old = by_number.get(number)
         if old is None:
             plan.replacements.append(
-                f"{label} says it replaces {number}, but {number} is not in the database yet. Add its id to 'replaces' once it is."
+                f"{label} says it replaces {number}, but {number} is not in the database yet. Add {number} to 'replaces' once it is."
             )
         elif old.id not in new.meta["replaces"]:
             new.meta["replaces"].append(old.id)
@@ -487,7 +503,7 @@ def append_congress_stub(root: Path, entry: dict) -> None:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     if text.strip() == "[]":
         text = ""
-    stub = yaml.safe_dump([entry], sort_keys=False, allow_unicode=True)
+    stub = pbook.dump_yaml([entry])
     path.write_text(text.rstrip("\n") + ("\n" if text else "") + stub, encoding="utf-8")
 
 
@@ -514,14 +530,57 @@ def write_reports(root: Path, plans: list[Plan]) -> None:
     dist = root / "dist"
     dist.mkdir(exist_ok=True)
     (dist / "import-report.md").write_text(report_markdown(plans), encoding="utf-8")
-    errors = [(plan, error) for plan in plans for error in plan.errors]
+    failed = [plan for plan in plans if plan.errors]
     error_file = dist / "import-errors.md"
-    if errors:
-        lines = ["Some motions were not imported. The other motions were imported and published.", ""]
-        lines += [f"- {', '.join(p.name for p in plan.sources)}: {error}" for plan, error in errors]
+    if failed:
+        names = ", ".join(p.name for plan in failed for p in plan.sources)
+        lines = [f"# Import incomplete: {names}", "", "Some motions were not imported. The other motions were imported and published.", ""]
+        lines += [f"- {error}" for plan in failed for error in plan.errors]
+        lines += [
+            "",
+            "What to do: fix these motions in OpenSlides as described, export again and upload the new file(s) "
+            "to the imports folder with the same name. Motions that are already imported are skipped. "
+            "Close this issue when everything is imported.",
+        ]
         error_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    elif error_file.exists():
-        error_file.unlink()
+    else:
+        error_file.unlink(missing_ok=True)
+
+    stubs = [plan.congress_stub for plan in plans if plan.congress_stub]
+    congress_file = dist / "new-congress.md"
+    if stubs:
+        lines = [f"# New congress: {', '.join(stub['id'] for stub in stubs)}", ""]
+        for stub in stubs:
+            lines += [
+                f"The upload for {stub['id']} belongs to a congress that was not in the list of congresses yet. "
+                "Its resolutions were imported, and the congress was added to congresses.yml with placeholders:",
+                "",
+                "```yaml",
+                pbook.dump_yaml([stub]).strip(),
+                "```",
+                "",
+            ]
+        lines += [
+            "What to do: open congresses.yml, click the pencil icon, correct the name and the two dates "
+            "(first and last day of the congress, written like 2026-10-25) and click Commit changes. "
+            "The adoption dates of the new resolutions are then corrected automatically. Close this issue when done.",
+        ]
+        congress_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        congress_file.unlink(missing_ok=True)
+
+
+def write_failure(root: Path, files: list[Path], message: str) -> None:
+    """Text of the "Import failed" issue (see the module docstring)."""
+    names = ", ".join(p.name for p in files or uploads(root)) or "upload"
+    dist = root / "dist"
+    dist.mkdir(exist_ok=True)
+    text = (
+        f"# Import failed: {names}\n\n{message}\n\n"
+        "Nothing was imported or published; the Policy Book online is unchanged. "
+        "When the corrected file is uploaded, the import runs again by itself.\n"
+    )
+    (dist / "import-failed.md").write_text(text, encoding="utf-8")
 
 
 def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCEPTED_STATES, today: dt.date | None = None) -> list[Plan]:
@@ -537,13 +596,17 @@ def run(files: list[Path], root: Path, force: bool = False, accepted_states=ACCE
     }
     groups = find_sources(files, root)
     plans, duplicates = [], []
+    known = {str(c.get("id")).lower(): str(c.get("id")) for c in ctx["congresses"]}
     for congress, sources in sorted(groups.items()):
+        congress = known.get(congress.lower(), congress)  # use the spelling of congresses.yml
         if not force and all(archived_copy(p, root) for p in sources):
             duplicates += sources  # exactly these files were imported before
             continue
         plans.append(plan_upload(congress, sources, root, ctx, force))
 
     for plan in plans:
+        for path in plan.removals:
+            path.unlink(missing_ok=True)
         for path, meta, body in plan.writes:
             pbook.write_resolution(path, meta, body)
         if plan.congress_stub:
@@ -564,9 +627,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     states = [s.strip() for s in args.accepted_states.split(",") if s.strip()]
+    (args.root / "dist" / "import-failed.md").unlink(missing_ok=True)
     try:
         plans = run([f.resolve() for f in args.files], args.root.resolve(), force=args.force, accepted_states=states)
     except ImportFailure as exc:
+        write_failure(args.root.resolve(), args.files, str(exc))
         print(f"Import failed: {exc}")
         return 1
     if not plans:
