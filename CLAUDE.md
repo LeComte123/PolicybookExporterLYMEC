@@ -213,6 +213,21 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
   \tracinglostchars=3 makes any other missing character a build error instead of a silent gap.
 - Numbering: new numbers continue after the highest in the chapter; gaps stay, no renumbering (user's
   decision: closing the gaps, e.g. 1.01–1.32, would mean too much rework).
-- Still to do: archived resolutions from the status list once the Bureau has filled it (title, congress,
-  full text). Then (agreed): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and
-  delete migrate_vienna.py and tests/test_migrate.py (they stay in the git history).
+- Research in the congress minutes (https://www.lymec.eu/documents, 2010–2026; user's request):
+  congresses.yml completed from them (names, dates; 2011-Barcelona, 2012-Copenhagen, 2013-Tallinn,
+  2013-Bucharest, 2014-Zagreb, 2015-Helsinki, 2017-Sofia, 2019-London, 2020-Online-Spring added;
+  2020-Online renamed 2020-Online-Autumn; 2002-Sinaia from a text). Where minutes and book differ, the
+  minutes win (e.g. Rotterdam 2015 = 1–2 May, Bratislava 2025 = 14–15 Nov). 28 congresses and 47
+  submitter lists of migrated resolutions came from the minutes (agenda lists "title – mover", "presented
+  by Name (Org)", "Resolution N is carried"); the status list Notes say where each comes from.
+  Prefill errors corrected: 2.35 (Online Autumn 2020, not Sofia 2012), 6.01 (Tallinn 2013, not Paris 1992).
+- Status list: the 61 gap numbers are 'not used' (user's rule: unless the Vienna book shows them archived);
+  52 'archived' lines record the resolutions the old texts say were archived or merged (old numbers,
+  titles where given, Archived at, Replaced by for merges). An archived line for an old resolution whose
+  number is used today only warns (its text is not in the database); without a title it is ignored.
+- Next source for archived resolutions: the Digital Assembly outcome documents on lymec.eu (tables
+  number – title – Archive/Merge/Update, 2020–2025); full texts only in older editions of the book.
+- Still to do: archived resolutions into the database (needs their texts, e.g. from older editions of the
+  book; migrate_vienna.py's clean_body/move_submitters are reused for that, so the script stays until then).
+  Then (agreed, on hold): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and delete
+  migrate_vienna.py and tests/test_migrate.py (they stay in the git history).

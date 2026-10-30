@@ -80,6 +80,7 @@ def tasks_markdown(root: Path) -> str:
     table = status_list.read(root)
     records = table[1] if table else []
     rows = status_list.rows_of(records)
+    row_notes = {id(row): rec.get("Notes", "") for row, rec in zip(rows, records)}
     out = [
         "# Open tasks",
         "",
@@ -159,7 +160,7 @@ def tasks_markdown(root: Path) -> str:
         for match in STATEMENT_RE.finditer(res.body):
             text = statement(match.group(0))
             numbers = NUMBER_RE.findall(text)  # its own number too: "merges former 8.01" means an older 8.01
-            open_numbers = [n for n in dict.fromkeys(numbers) if not any(r.number == n and r.status == "archived" and r.title for r in rows)]
+            open_numbers = [n for n in dict.fromkeys(numbers) if not any(r.number == n and r.status == "archived" for r in rows)]
             if open_numbers:
                 items.append(f"- {res.number}: \"{text}\" → {', '.join(open_numbers)}")
     section(
@@ -170,17 +171,33 @@ def tasks_markdown(root: Path) -> str:
         items,
     )
 
-    # 6. archived lines without a resolution
-    numbered = {res.number for res in resolutions}
-    waiting = [row for row in rows if row.status == "archived" and row.number not in numbered]
+    # 6. archived lines that need a title: their number is used by a resolution in force today
+    in_force_numbers = {row.number for row in rows if row.status == "in force"}
+    untitled = [row for row in rows if row.status == "archived" and not row.title and row.number in in_force_numbers]
     section(
-        "Archived resolutions without their text",
-        ["Marked archived in the status list, but their text is not in the database yet. Say where the text is",
-         "(column Full text) so that it can be added."],
-        [f"- {row.number} {row.title}".rstrip() for row in waiting],
+        "Archived resolutions that need their title",
+        ["Their number is used by another resolution today, so the title is needed to tell them apart. Write it",
+         "in the status list, column Title."],
+        [f"- {row.number}" + (f" ({row_notes[id(row)]})" if row_notes.get(id(row)) else "") for row in untitled],
     )
 
-    # 7. motions not imported
+    # 7. archived lines whose resolution is not in the database
+    def in_database(row):
+        return any(
+            res.number == row.number and res.meta.get("status") != "in_force"
+            and (not row.title or status_list.titles_match(row.title, str(res.meta.get("title", ""))))
+            for res in resolutions
+        )
+
+    waiting = [row for row in rows if row.status == "archived" and not in_database(row)]
+    section(
+        "Archived resolutions without their text",
+        ["Marked archived in the status list, but their text is not in the database, so they are not in the",
+         "archive edition yet. Say where the text is (column Full text), e.g. an older edition of the Policy Book."],
+        [f"- {row.number} {row.title or '(title not known)'}" for row in waiting],
+    )
+
+    # 8. motions not imported
     section("Accepted motions that were not imported", [], not_imported(root, resolutions))
     return "\n".join(out).rstrip() + "\n"
 

@@ -1,10 +1,9 @@
 # One entry per congress. id = <year>-<city in English>, e.g. 2026-Vilnius. It is also the name of the upload file.
+# Two congresses in one city and year: add Spring or Autumn (2020-Online-Spring, 2020-Online-Autumn).
 # The importer adds an entry when a new congress is uploaded; correct its name and dates here.
 #
-# The congresses up to 2026-Vienna were read from the 'Adopted at ...' lines of the Vienna 2026 Policy Book
-# for the migration of the old Policy Book. Please check them; comments say what is uncertain.
-# Added for the migration: 2009-Rome, 2010-Ljubljana and 2014-Berlin (named in resolution texts). The dates
-# of 2024-Warsaw, 2025-Zagreb, 2025-Bratislava and 2026-Vienna were confirmed by the Bureau.
+# Since 2010 the names and dates come from the congress minutes on https://www.lymec.eu/documents.
+# Before 2010 there are no minutes online: the data comes from the resolutions of the Vienna 2026 Policy Book.
 
 - id: 1992-Paris
   name: LYMEC Congress 1992
@@ -21,6 +20,11 @@
   city: Plovdiv
   date_start: 2001-04-07
   date_end: 2001-04-08
+- id: 2002-Sinaia
+  name: LYMEC Congress 2002
+  city: Sinaia
+  date_start: null  # 2.35 says 'adopted in Sinaia, Romania in March 2002'; dates not known
+  date_end: null
 - id: 2004-Zagreb
   name: LYMEC Congress 2004
   city: Zagreb
@@ -54,72 +58,117 @@
 - id: 2009-Rome
   name: LYMEC Congress 2009
   city: Rome
-  date_start: 2009-05-08  # from the text of 3.05: 'assembled in Rome from 8th till 10th of May 2009'
+  date_start: 2009-05-08
   date_end: 2009-05-10
 - id: 2010-Sinaia
-  name: LYMEC Congress 2010
+  name: LYMEC Spring Congress 2010
   city: Sinaia
   date_start: 2010-04-30
   date_end: 2010-05-01
 - id: 2010-Ljubljana
   name: LYMEC Autumn Congress 2010
   city: Ljubljana
-  date_start: 2010-11-26  # from the text of 9.07: 'Ljubljana (Slovenia), November 26-28, 2010'
+  date_start: 2010-11-26  # the minutes only say 'November 2010'; dates from 9.07
   date_end: 2010-11-28
 - id: 2011-Utrecht
-  name: LYMEC Congress 2011
+  name: LYMEC Spring Congress 2011
   city: Utrecht
   date_start: 2011-05-06
-  date_end: 2011-05-08
+  date_end: 2011-05-07
+- id: 2011-Barcelona
+  name: LYMEC Autumn Congress 2011
+  city: Barcelona
+  date_start: 2011-11-04
+  date_end: 2011-11-05
+- id: 2012-Copenhagen
+  name: LYMEC Spring Congress 2012
+  city: Copenhagen
+  date_start: 2012-05-11
+  date_end: 2012-05-13
 - id: 2012-Sofia
-  name: LYMEC Congress 2012
+  name: LYMEC Autumn Congress 2012
   city: Sofia
   date_start: 2012-10-12
   date_end: 2012-10-14
+- id: 2013-Tallinn
+  name: LYMEC Spring Congress 2013
+  city: Tallinn
+  date_start: 2013-04-26
+  date_end: 2013-04-27
+- id: 2013-Bucharest
+  name: LYMEC Autumn Congress 2013
+  city: Bucharest
+  date_start: 2013-11-15
+  date_end: 2013-11-17
+- id: 2014-Zagreb
+  name: LYMEC Spring Congress 2014
+  city: Zagreb
+  date_start: 2014-06-06
+  date_end: 2014-06-07
 - id: 2014-Berlin
   name: LYMEC Autumn Congress 2014
   city: Berlin
-  date_start: 2014-10-23  # from the text of 6.04: 'LYMEC Congress, Berlin, Germany 23-25 October 2014'
+  date_start: 2014-10-24
   date_end: 2014-10-25
 - id: 2015-Rotterdam
-  name: LYMEC Congress 2015
+  name: LYMEC Spring Congress 2015
   city: Rotterdam
-  date_start: null  # Book says 'May 2015' and '3rd of May 2015'
-  date_end: 2015-05-03
+  date_start: 2015-05-01
+  date_end: 2015-05-02
+- id: 2015-Helsinki
+  name: LYMEC Autumn Congress 2015
+  city: Helsinki
+  date_start: 2015-10-30
+  date_end: 2015-10-31
 - id: 2016-Vienna
-  name: LYMEC Congress 2016
+  name: LYMEC Spring Congress 2016
   city: Vienna
   date_start: 2016-04-29
-  date_end: 2016-04-30
+  date_end: 2016-05-01
 - id: 2016-Tallinn
-  name: LYMEC Congress 2016
+  name: LYMEC Autumn Congress 2016
   city: Tallinn
-  date_start: 2016-11-11
-  date_end: 2016-11-12
+  date_start: 2016-11-10
+  date_end: 2016-11-13
 - id: 2017-Stockholm
-  name: LYMEC Congress 2017
+  name: LYMEC Spring Congress 2017
   city: Stockholm
   date_start: 2017-05-12
   date_end: 2017-05-14
+- id: 2017-Sofia
+  name: LYMEC Autumn Congress 2017
+  city: Sofia
+  date_start: 2017-10-13
+  date_end: 2017-10-14
 - id: 2018-Berlin
-  name: LYMEC Congress 2018
+  name: LYMEC Spring Congress 2018
   city: Berlin
-  date_start: 2018-04-06
+  date_start: 2018-04-06  # the minutes give no dates; dates from the resolutions
   date_end: 2018-04-08
 - id: 2018-Vilnius
   name: LYMEC Autumn Congress 2018
   city: Vilnius
-  date_start: null  # Only the adoption day is known
-  date_end: 2018-10-13
+  date_start: 2018-10-12
+  date_end: 2018-10-14
 - id: 2019-Brussels
   name: LYMEC Spring Congress 2019
   city: Brussels
-  date_start: null  # Only the adoption day is known
-  date_end: 2019-04-06
-- id: 2020-Online
+  date_start: 2019-04-05
+  date_end: 2019-04-07
+- id: 2019-London
+  name: LYMEC Autumn Congress 2019
+  city: London
+  date_start: 2019-11-08
+  date_end: 2019-11-09
+- id: 2020-Online-Spring
+  name: LYMEC Online Electoral Spring Congress 2020
+  city: Online
+  date_start: 2020-04-04
+  date_end: 2020-04-04
+- id: 2020-Online-Autumn
   name: LYMEC Online Autumn Congress 2020
   city: Online
-  date_start: null  # Only the adoption day is known
+  date_start: 2020-11-13
   date_end: 2020-11-14
 - id: 2021-Online
   name: LYMEC Online Spring Congress 2021
@@ -129,32 +178,32 @@
 - id: 2021-Paris
   name: LYMEC Autumn Congress 2021
   city: Paris
-  date_start: null  # Only the adoption day is known
+  date_start: 2021-10-22
   date_end: 2021-10-24
 - id: 2022-Prague
-  name: LYMEC Spring Electoral Congress 2022
+  name: LYMEC Electoral Spring Congress 2022
   city: Prague
-  date_start: null  # Only the adoption day is known
-  date_end: 2022-05-21
+  date_start: 2022-05-20
+  date_end: 2022-05-22
 - id: 2022-Bucharest
   name: LYMEC Autumn Congress 2022
   city: Bucharest
-  date_start: null  # Only the adoption day is known
-  date_end: 2022-11-18
+  date_start: 2022-11-18
+  date_end: 2022-11-20
 - id: 2023-Budapest
   name: LYMEC Spring Congress 2023
   city: Budapest
-  date_start: null  # Only the adoption day is known
-  date_end: 2023-05-06
+  date_start: 2023-05-05
+  date_end: 2023-05-07
 - id: 2023-Riga
   name: LYMEC Autumn Congress 2023
   city: Riga
-  date_start: null  # Only the adoption day is known
-  date_end: 2023-11-11
+  date_start: 2023-11-10
+  date_end: 2023-11-12
 - id: 2024-Brussels
   name: LYMEC Spring Congress 2024
   city: Brussels
-  date_start: null  # Only the adoption day is known
+  date_start: 2024-03-22
   date_end: 2024-03-24
 - id: 2024-Warsaw
   name: LYMEC Autumn Congress 2024
@@ -169,8 +218,8 @@
 - id: 2025-Bratislava
   name: LYMEC Autumn Congress 2025
   city: Bratislava
-  date_start: 2025-11-14
-  date_end: 2025-11-16
+  date_start: 2025-11-14  # the minutes have two days (14 and 15 November)
+  date_end: 2025-11-15
 - id: 2026-Vienna
   name: LYMEC Spring Congress 2026
   city: Vienna

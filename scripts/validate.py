@@ -365,8 +365,8 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
         where = f"{name} line {row.line} ({row.number})"
         if not row.title and any(r is not row and r.number == row.number and r.status == "in force" for r in rows):
             # The number has a line 'in force' as well: an old resolution that had this number before a
-            # renumbering. Without its title the resolution that has the number today would be archived.
-            report.error(f"{where}: marked archived, but another line says {row.number} is in force. Add the title of the archived resolution.")
+            # renumbering. Without its title it is unclear which one is meant, so nothing is archived.
+            report.warn(f"{where}: marked archived, but another line says {row.number} is in force. Add the title of the archived resolution.")
             continue
         same = [r for r in numbered if r.number == row.number]
         matching = [r for r in same if not row.title or status_list.titles_match(row.title, str(r.meta.get("title", "")))]
@@ -374,10 +374,10 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
             continue  # already archived or superseded
         target = next((r for r in matching if r.meta.get("status") == "in_force"), None)
         if target is None:
-            if same:
-                report.error(
-                    f"{where}: marked archived with the title \"{row.title}\", but resolution {row.number} is "
-                    f"\"{same[0].meta.get('title')}\". Correct the number or the title in the status list."
+            if same:  # an old resolution with this number; its text is not in the database
+                report.warn(
+                    f"{where}: archived \"{row.title}\" is not in the database (resolution {row.number} today is "
+                    f"\"{same[0].meta.get('title')}\"). Nothing changes until its text is added."
                 )
             else:
                 report.warn(f"{where}: marked archived, but there is no resolution with this number in the database. Check the number.")
