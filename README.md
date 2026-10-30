@@ -10,6 +10,7 @@ Everything is done in your web browser on GitHub. You do not need to install any
 - [After a congress: add the new resolutions](#after-a-congress-add-the-new-resolutions)
 - [Add a new congress](#add-a-new-congress)
 - [Archiving resolutions: the status list](#archiving-resolutions-the-status-list)
+- [What is still open](#what-is-still-open)
 - [When something goes wrong](#when-something-goes-wrong)
 - [Correcting a resolution](#correcting-a-resolution)
 - [What is in this repository](#what-is-in-this-repository)
@@ -225,6 +226,14 @@ than the web editor.
   uncertain, and the congresses of Spring and Autumn 2025 are still missing.
 
 
+## What is still open
+
+The file **OPEN_TASKS.md** (on the main page) lists everything that still has to be filled in or
+checked, resolution by resolution: numbers without a status, resolutions whose congress is not known,
+missing congress dates, submitters, archived resolutions mentioned in texts, motions that were not
+imported. It is updated automatically after every change, so it gets shorter as you work through it.
+
+
 ## When something goes wrong
 
 If there is a problem, a message appears under the **Issues** tab. It says what is wrong and what to
@@ -280,7 +289,9 @@ Book number, so the folder is sorted like the Policy Book:
 
 Resolutions from the old Policy Book are named like `1.33_PB2026-1.33.md`: their reference is their
 number in the Vienna 2026 Policy Book ("PB2026"). Their texts were taken over word for word, including
-the lines about movers, adoption and former numbers.
+the lines about adoption and former numbers. The submitting and co-signing organisations were moved
+into the header, except where the list names individual members (names of people are never put in
+the header); those lists stay in the text.
 
 To change a resolution:
 
@@ -339,10 +350,9 @@ with a dash and a space. An empty list is written `[]`.
 **A resolution was archived or replaced.** Use the [status list](#archiving-resolutions-the-status-list),
 not the resolution file.
 
-**A resolution gets a new number** (for example when the numbers of a chapter are closed up after
-resolutions were archived). Change its `number`. The file is renamed automatically. A number can only
-be used once among the resolutions in force; archived resolutions keep their old number. Change the
-number in the status list as well.
+**Numbers are never reused.** A new resolution gets the next number after the highest one in its
+chapter (e.g. 1.41), so the gaps left by archived resolutions stay. To correct a wrong number, change
+`number` in the file; the file is renamed automatically. Change the number in the status list as well.
 
 **Congress names and dates** are in the file `congresses.yml`. Edit them the same way.
 
@@ -355,6 +365,7 @@ number in the status list as well.
 | `imported` | Every uploaded export, kept for the record: one folder per import, named date-time_congress. |
 | `resolutions` | One file per resolution. |
 | `resolution_status_list.csv` | The status list: every Policy Book number and whether it is in force or archived. |
+| `OPEN_TASKS.md` | What still has to be filled in or checked (made automatically). |
 | `congresses.yml` | The list of congresses since 1992. |
 | `categories.yml` | The nine chapters of the Policy Book. |
 | `docs` | Pictures: the LYMEC logo used in the Policy Book, and the screenshots for this guide. |

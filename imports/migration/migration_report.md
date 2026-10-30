@@ -57,6 +57,8 @@ that the resolution which has the number today is not archived by mistake).
 - 2.29 archives 2.09
 - 2.30 archives 2.10
 - 2.31 archives 2.13
+- 2.32 archives 2.15
+- 2.33 archives 2.16
 - 2.34 archives 2.21
 - 2.35 archives 2.23
 - 2.35 archives 2.25
@@ -65,6 +67,8 @@ that the resolution which has the number today is not archived by mistake).
 - 2.38 archives 2.17
 - 2.38 archives 2.32
 - 2.38 archives 2.33
+- 2.63 archives 2.27
+- 2.63 archives 2.39
 - 9.37 archives 9.37
 - 9.48 archives 9.48
 

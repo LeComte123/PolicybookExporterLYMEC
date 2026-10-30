@@ -101,8 +101,10 @@ def test_migration_writes_one_file_per_resolution(repo):
 
 def test_text_is_kept_word_for_word_with_cleaned_structure(repo):
     mv.migrate(repo)
-    body = load(repo, "1.33").body
-    assert body.startswith("Movers: Jeunes MR, Jong VLD Adopted at LYMEC Online Autumn Congress")  # stays in the text
+    res = load(repo, "1.33")
+    body = res.body
+    assert res.meta["submitted_by"] == ["Jeunes MR", "Jong VLD"]  # moved into the header ...
+    assert body.startswith("Adopted at LYMEC Online Autumn Congress")  # ... the adoption line stays in the text
     assert "**Noting that:**" in body and "##" not in body  # sub-headings become bold paragraphs
     assert "* One \\- with a dash\\!" in body
     assert "* A tab after the bullet" in body  # a tab after a bullet would make Markdown show code
@@ -140,3 +142,30 @@ def test_congress_entered_later_in_the_status_list_is_filled_in(repo):
     assert report.errors == []
     res = load(repo, "2.09")
     assert res.meta["congress"] == "2004-Zagreb" and str(res.meta["adopted"]) == "2004-04-28"
+
+
+@pytest.mark.parametrize(
+    "body, submitted, cosigned, text",
+    [
+        # two labels in one paragraph, the adoption line after the list stays
+        ("Submitted by: Jonge Democraten Co-signatories: JNC, Centerstudenter. Adopted at the Autumn Congress 2022\n\nText.",
+         ["Jonge Democraten"], ["JNC", "Centerstudenter"], "Adopted at the Autumn Congress 2022\n\nText."),
+        # a list cut into two paragraphs by the export
+        ("Movers: Working Group, Radikal Ungdom, Joventut\n\nNacionalista de Catalunya, JOVD\n\n**Noting that:**",
+         ["Working Group", "Radikal Ungdom", "Joventut Nacionalista de Catalunya", "JOVD"], [], "**Noting that:**"),
+        # names of individual members: the list stays in the text, the organisations' list is still moved
+        ("Submitted by: Silvia Fernández (IMS), LHG Co-signed by: JOVD, Alliance Youth\n\nText.",
+         [], ["JOVD", "Alliance Youth"], "Submitted by: Silvia Fernández (IMS), LHG\n\nText."),
+        # "By ..." at the start of an ordinary sentence is not a label
+        ("By legalising surrogacy, we can remove the legal limbo.", [], [], "By legalising surrogacy, we can remove the legal limbo."),
+        # a note in brackets, or text, before the label
+        ("(Former 9.70 Prior to Riga) Submitted by: European Youth of Ukraine\n\nUpdated in 2021 Submitted by: LHG",
+         ["European Youth of Ukraine", "LHG"], [], "(Former 9.70 Prior to Riga)\n\nUpdated in 2021"),
+        # "&" before a note, connecting "and"
+        ("**Movers:** IMS Delegates & Outcome of the IMS Working Group\n\nSubmitters: LUF (Sweden) and JOVD, and Radikal Ungdom",
+         ["IMS Delegates", "LUF (Sweden) and JOVD", "Radikal Ungdom"], [], "& Outcome of the IMS Working Group"),
+    ],
+)
+def test_move_submitters(body, submitted, cosigned, text):
+    sub, cos, new_body, removed, kept = mv.move_submitters(body)
+    assert (sub, cos, new_body) == (submitted, cosigned, text)

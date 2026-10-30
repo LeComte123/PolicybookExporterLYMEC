@@ -84,6 +84,10 @@ jobs:
         id: check
         run: uv run scripts/validate.py --fix 2>&1 | tee "$RUNNER_TEMP/check.log"
 
+      - name: Update the list of open tasks
+        id: tasks
+        run: uv run scripts/open_tasks.py
+
       - name: Anything to publish?
         id: content
         run: |

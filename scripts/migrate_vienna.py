@@ -47,6 +47,8 @@ HEADING_RE = re.compile(r"^(\s*)(\d+\.\s+)?#{1,6}\s+(.*)$")
 LIST_ITEM_RE = re.compile(r"^\s*([*+-]|\d+[.)])\s")
 LIST_HEADING_RE = re.compile(r"^(\s*(?:[*+-]|\d+[.)])\s+)#{1,6}\s+(.*)$")
 LONE_BULLET = {"●", "▪", "•", "*", "-", "* ", "- "}
+# The funding notice at the end of the book ("Co-funded by the European Union ...") is not part of 9.85
+FUNDING_NOTICE_RE = re.compile(r"\n+\*?“?Co-funded by the European Union\..*\Z", re.S)
 
 
 class MigrationError(Exception):
@@ -188,6 +190,127 @@ def no_code_blocks(lines: list[str]) -> list[str]:
     return lines
 
 
+# ---------------------------------------------------------------- submitters into the header
+
+SUBMIT_LABELS = (
+    r"Movers?|Submitted\s+by|Submitters?|Co-?\s?[Ss]ubmitted\s+by|Co-?[Ss]ubmitters|Authors?|Co-?[Ww]riters"
+)
+COSIGN_LABELS = (
+    r"Co-?\s?[Ss]igned\s+by|Co-?[Ss]igners|Co-?[Ss]ignatories|Cosignarories|Cosignatory\s+MOs|MO[’']?s\s+supporting(?:\s+the\s+Resolution)?"
+    r"|Supported\s+by|Co-?sponsored\s+by|Signed\s+by"
+)
+LABELS = rf"{SUBMIT_LABELS}|{COSIGN_LABELS}"
+# A label at the start of a paragraph or inside one. Without a colon only "Movers FEL", "Submitted by
+# Uppreisn" and "*By Centerstudenter International*" (a short paragraph) occur.
+START_LABEL_RE = re.compile(
+    rf"^[*_\s]*(?:({LABELS})[*_]*[ \t]*:[*_]*[ \t]*:?|(Movers?|Submitted\s+by|Submitters?|By)(?=\s))[*_]*(?=\s|$)"
+)
+MID_LABEL_RE = re.compile(rf"(?<=\s)[*_]*({LABELS})[*_]*[ \t]*:[*_]*(?=\s|$)")
+# Where a list of organisations ends: the adoption line, a statement, a sub-heading glued to it, ...
+LIST_END_RE = re.compile(
+    r"\s(?=(?:&\s+)?[*_]*(?:(?:Adopted|Approved|Passed|Resolution adopted|This resolution|This motion|Outcome of|Keywords|"
+    r"Considering|Noting|Co-written)\b|LYMEC\s+[a-z]))"
+    r"|(?<=\.)\s+(?=[A-Z][a-z]+\s+[a-z])"  # a sentence after the list: "JNC. No resolution to be archived ..."
+)
+LEADING_NOTE_RE = re.compile(rf"^(\([^)]*\))\s+(?=[*_]*(?:{LABELS})\b)")  # "(Former 9.70 ...) Submitted by: ..."
+NOT_CONTINUED_RE = re.compile(
+    r"^[*_#\s]*(?:Adopted|Approved|Passed|Resolution adopted|This resolution|This motion|LYMEC|Considering|Noting|"
+    r"Recalling|Recognising|Remembering|Believing|Whereas|Keywords|Objective|Notes?\b|Summary|\(Former|\(Merger|Merger)"
+)
+# Names of people (individual members): never in the header, so their list stays in the text
+PERSON_RE = re.compile(
+    r"\(IMs?\b|\(IMS|IMS Delegate \(|IMS [A-Z][a-z]+ [A-Z]|Julius Graack|Lova Bodin|Rasmus Festerling|Clara Puig|"
+    r"Tim Robinson|TIm Robinson|Christine Khomyk|Felix Schulz|Pascal Stefan|Sorcha Ní|Adam Vol|Arthur Wu|Silvia Fern"
+)
+
+
+def flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def continues_list(list_text: str, paragraph: str) -> bool:
+    """Whether the next paragraph is the rest of a list of organisations (the export broke some lists)."""
+    nxt = flat(paragraph)
+    if not nxt or START_LABEL_RE.match(nxt) or NOT_CONTINUED_RE.match(nxt) or re.match(r"^[*+-]\s", nxt):
+        return False
+    if nxt.rstrip("*_ ").endswith(":") and len(nxt) < 80:  # a sub-heading
+        return False
+    end = LIST_END_RE.search(nxt)
+    entries = import_openslides.split_orgs(re.sub(r"\([^)]*\)", "", nxt[: end.start()] if end else nxt))
+    if any(len(e.split()) > 8 for e in entries):  # sentences, not names
+        return False
+    short_name = len(nxt.split()) <= 4 and not nxt.endswith((".", "!", "?", ":")) and all(w[0].isupper() for w in nxt.split())
+    return list_text.rstrip("*_ ").endswith(",") or nxt[0].islower() or nxt.startswith("(") or "," in nxt or short_name
+
+
+def list_open(paragraph: str, has_label: bool) -> bool:
+    """Whether the last list in this paragraph runs to its end (so it may continue in the next one)."""
+    text = flat(paragraph)
+    if has_label:
+        last = max((m.end() for m in MID_LABEL_RE.finditer(text)), default=START_LABEL_RE.match(text).end())
+        text = text[last:]
+    return not LIST_END_RE.search(" " + text)
+
+
+def organisations(text: str) -> list[str]:
+    text = unescape(text.replace("*", " "))
+    entries = [re.sub(r"^(?:and|&)\s+|\s+(?:and|&)$", "", flat(e).strip(" .,")) for e in import_openslides.split_orgs(text)]
+    return [e for e in entries if e]
+
+
+def move_submitters(body: str) -> tuple[list[str], list[str], str, list[str], list[str]]:
+    """Move the lists of submitting and co-signing organisations from the start of the text into the header.
+
+    Returns (submitted_by, co_signers, new body, removed texts, lists kept because they name people).
+    Only the lists are removed; text after a list ("Adopted at ...") stays as it was, line breaks included.
+    """
+    paras = []
+    for k, para in enumerate(body.split("\n\n")):  # text before a label becomes its own paragraph
+        match = LEADING_NOTE_RE.match(flat(para))
+        if match:
+            paras += [match.group(1), para[para.index(match.group(1)) + len(match.group(1)):].strip()]
+        elif k < 8 and not START_LABEL_RE.match(flat(para)) and (mid := MID_LABEL_RE.search(para)):
+            paras += [para[: mid.start()].strip(), para[mid.start():].strip()]  # "... 2021 Submitted by: ..."
+        else:
+            paras.append(para)
+    submitted, cosigned, removed, kept = [], [], [], []
+    i = 0
+    while i < min(len(paras), 8):
+        match = START_LABEL_RE.match(flat(paras[i]))
+        if not match or (match.group(2) == "By" and len(flat(paras[i]).split()) > 6):  # "By legalising ..." is text
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(paras) and list_open(paras[j], j == i) and continues_list(flat(paras[j]), paras[j + 1]):
+            j += 1
+        source = "\n\n".join(paras[i:j + 1])
+        first = START_LABEL_RE.match(source)
+        group = 1 if first.group(1) else 2
+        labels = [(first.group(group), first.start(group), first.end())]
+        labels += [(m.group(1), m.start(1) - (len(m.group(0)) - len(m.group(0).lstrip("*_"))), m.end()) for m in MID_LABEL_RE.finditer(source, first.end())]
+        pieces = []  # what stays in the text, in order
+        for k, (label, start, content_start) in enumerate(labels):
+            limit = labels[k + 1][1] if k + 1 < len(labels) else len(source)
+            end = LIST_END_RE.search(source, content_start, limit)
+            content_end = end.start() if end else limit
+            segment = source[start:content_end]
+            too_long = any(len(re.sub(r"\([^)]*\)", "", e).split()) > 8 for e in organisations(source[content_start:content_end]))
+            if PERSON_RE.search(segment) or too_long:
+                pieces.append(segment.strip())
+                kept.append(flat(segment))
+            else:
+                orgs = organisations(source[content_start:content_end])
+                target = cosigned if re.fullmatch(COSIGN_LABELS, flat(label)) else submitted
+                target += [o for o in orgs if o not in target]
+                removed.append(segment)
+            if source[content_end:limit].strip():  # e.g. "Adopted at ..." after the list
+                pieces.append(source[content_end:limit].strip())
+        paras[i:j + 1] = pieces
+        i += len(pieces)
+    body = "\n\n".join(p for p in paras if p.strip())
+    return submitted, cosigned, body, removed, kept
+
+
 def migrate(root: Path, force: bool = False) -> dict:
     """Write the resolution files and return the facts for the report. Raises MigrationError."""
     folder = root / "imports" / "migration"
@@ -212,7 +335,7 @@ def migrate(root: Path, force: bool = False) -> dict:
     if len(set(numbers)) != len(numbers):
         raise MigrationError(f"Numbers appear twice in the book: {sorted({n for n in numbers if numbers.count(n) > 1})}.")
 
-    facts = {"written": [], "no_congress": [], "title_differs": [], "not_in_list": [], "statements": []}
+    facts = {"written": [], "no_congress": [], "title_differs": [], "not_in_list": [], "statements": [], "submitters_kept": []}
     for k, (number, start) in enumerate(titles):
         end = titles[k + 1][1] if k + 1 < len(titles) else len(lines)
         title = heading_title(lines[start])
@@ -220,7 +343,9 @@ def migrate(root: Path, force: bool = False) -> dict:
         if match := GLUED_SUBHEADING_RE.match(title):
             title = match.group(1)
             body_lines = [f"**{match.group(2)}**", ""] + body_lines
-        body = clean_body(body_lines)
+        body = FUNDING_NOTICE_RE.sub("", clean_body(body_lines)) if k == len(titles) - 1 else clean_body(body_lines)
+        submitted, cosigned, body, removed, kept = move_submitters(body)
+        facts["submitters_kept"] += [(number, text) for text in kept]
 
         row = in_force_rows.get(number)
         congress = row.adopted_at if row and row.adopted_at else None
@@ -244,8 +369,8 @@ def migrate(root: Path, force: bool = False) -> dict:
             "replaces": [],
             "superseded_by": None,
             "amends": [],
-            "submitted_by": [],
-            "co_signers": [],
+            "submitted_by": submitted,
+            "co_signers": cosigned,
             "source": "migration",
         }
         pbook.write_resolution(pbook.resolution_path(root, meta), meta, body)
