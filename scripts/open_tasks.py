@@ -107,7 +107,11 @@ def tasks_markdown(root: Path) -> str:
     )
 
     # 2. congress not known
-    says = {rec.get("Number"): (rec.get("Vienna 2026 book says", ""), rec.get("Notes", "")) for rec in records}
+    says = {  # the line of the resolution in force; a number can also have lines of archived resolutions
+        row.number: (rec.get("Vienna 2026 book says", ""), rec.get("Notes", ""))
+        for row, rec in zip(rows, records)
+        if row.status == "in force"
+    }
     unknown = [res for res in resolutions if res.meta.get("status") == "in_force" and not res.meta.get("congress")]
     items = []
     for res in unknown:

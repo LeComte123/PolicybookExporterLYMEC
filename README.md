@@ -157,8 +157,10 @@ new resolutions are then corrected automatically.
 ## Archiving resolutions: the status list
 
 The file **resolution_status_list.csv** (on the main page of this repository) lists every Policy
-Book number with its status: `in force`, `archived` or `not used`. GitHub shows it as a table with a
-search box. The Bureau keeps it up to date. It decides which resolutions are archived:
+Book number with its status: `in force`, `archived` or `not used`. It also lists the resolutions
+archived since 2020 under the numbers they had then (from the Digital Assemblies; the chapters were
+renumbered after each renewal), so a number can have more than one line. GitHub shows it as a table
+with a search box. The Bureau keeps it up to date. It decides which resolutions are archived:
 
 - Every resolution marked **archived** in the list is archived: it leaves the Policy Book and moves to
   the archive edition.
@@ -171,10 +173,11 @@ search box. The Bureau keeps it up to date. It decides which resolutions are arc
 ### Archive or replace resolutions after a congress
 
 1. On the main page, open **resolution_status_list.csv** and click the **pencil icon** (*Edit this
-   file*). Each line is one Policy Book number. The columns are separated by commas; the first four
-   are **Number, Status, Archived at, Replaced by**.
+   file*). Each line is one resolution. The columns are separated by commas; the first four are
+   **Number, Status, Archived at, Replaced by**.
 2. Find the line of the resolution: press Ctrl+F (Mac: Cmd+F) and search for the number followed by
-   a comma, e.g. `6.03,`. The line starts like this:
+   a comma, e.g. `6.03,`. If the number has several lines, take the one that says `in force` (the
+   `archived` lines are older resolutions that had the same number). The line starts like this:
 
    ```
    6.03,in force,,,The future is Nuclear,...

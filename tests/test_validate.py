@@ -279,8 +279,15 @@ def test_status_list_title_must_match(repo, make_status_list):
     make_status_list(repo, [("6.21", "A completely different resolution", "archived"), ("6.21", "", "in force")])
     report = validate.validate(repo, fix=True)
     assert report.errors == []
-    assert any('archived "A completely different resolution" is not in the database' in w for w in report.warnings)
+    assert any("1 archived resolution(s) are not in the database" in w for w in report.warnings)
     assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
+
+
+def test_status_list_line_of_an_old_resolution_is_not_the_row_of_a_new_one(repo, make_status_list):
+    """A new resolution can get a number that an archived resolution had before a renumbering."""
+    make_status_list(repo, [("6.21", "", "in force"), ("6.22", "An old resolution that had this number", "archived")])
+    report = validate.validate(repo, fix=True)
+    assert report.errors == [] and any("rows added for 6.22" in f for f in report.fixed)
 
 
 def test_status_list_row_already_satisfied_by_an_archived_resolution(repo, make_status_list):

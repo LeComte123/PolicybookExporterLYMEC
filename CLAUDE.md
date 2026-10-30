@@ -221,12 +221,24 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
   submitter lists of migrated resolutions came from the minutes (agenda lists "title – mover", "presented
   by Name (Org)", "Resolution N is carried"); the status list Notes say where each comes from.
   Prefill errors corrected: 2.35 (Online Autumn 2020, not Sofia 2012), 6.01 (Tallinn 2013, not Paris 1992).
-- Status list: the 61 gap numbers are 'not used' (user's rule: unless the Vienna book shows them archived);
+- Status list: the 61 gap numbers were 'not used' (user's rule: unless the Vienna book shows them archived);
   52 'archived' lines record the resolutions the old texts say were archived or merged (old numbers,
-  titles where given, Archived at, Replaced by for merges). An archived line for an old resolution whose
-  number is used today only warns (its text is not in the database); without a title it is ignored.
-- Next source for archived resolutions: the Digital Assembly outcome documents on lymec.eu (tables
-  number – title – Archive/Merge/Update, 2020–2025); full texts only in older editions of the book.
+  titles where given, Archived at, Replaced by for merges). Archived lines for old resolutions (number used
+  today by another one, or by none) change nothing: validate sums them up in one warning (titled lines) or
+  warns per line (untitled: "add the title" / "check the number"). A number can have several lines (one in
+  force, archived ones of earlier numberings); a new resolution whose number only has archived lines with
+  other titles gets its own 'in force' line.
+- Digital Assemblies 1–7 (June 2020 – Sept 2023, lymec.eu/documents; the renewal of chapters 2–9, chapter 1
+  was never renewed) give number – title – decision tables; each archival was confirmed by the next congress
+  (minutes checked: Online Autumn 2020, Online 2021, Paris 2021, Prague 2022, Bucharest 2022, Budapest 2023,
+  Riga 2023). Added from them: 105 archived lines (old numbers of that time, title, Archived at = that
+  congress, Replaced by = today's number of the merged text; 9 gap numbers became 'archived') and the title
+  or Archived at of 27 existing lines. Not added: decisions the congress or DA reversed (4.30 CETA kept by
+  amendment 40 at Prague, 5.03 pensions kept, 9.15 merger rejected), DA1 items without recommendation (2.18
+  Russia, 2.24 Vatican), chapter 10 (internal motions, not in the 9-chapter book), and the old 9.20 Kosova
+  (merged into the new 9.20 with the same number and title: a line would archive today's 9.20). Merged
+  texts without an adoption line (3.01, 3.02, 3.09, 3.10, 5.01, 5.03, 9.20) got the congress that adopted
+  the merger. Full texts of archived resolutions are only in older editions of the book (none available).
 - Still to do: archived resolutions into the database (needs their texts, e.g. from older editions of the
   book; migrate_vienna.py's clean_body/move_submitters are reused for that, so the script stays until then).
   Then (agreed, on hold): move imports/migration/* to imported/<YYYY-MM-DD-HH-MM>_migration/ and delete

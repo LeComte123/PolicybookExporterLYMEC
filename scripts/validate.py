@@ -359,6 +359,7 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
     in_force = {r.number: r for r in numbered if r.meta.get("status") == "in_force"}
     replaced = {t for r in resolutions for t in r.meta.get("replaces") or [] if isinstance(t, str)}
     changed = set()
+    without_text = []  # archived resolutions that had the number before a renumbering; text not in the database
     for row in rows:
         if row.status != "archived":
             continue
@@ -374,11 +375,8 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
             continue  # already archived or superseded
         target = next((r for r in matching if r.meta.get("status") == "in_force"), None)
         if target is None:
-            if same:  # an old resolution with this number; its text is not in the database
-                report.warn(
-                    f"{where}: archived \"{row.title}\" is not in the database (resolution {row.number} today is "
-                    f"\"{same[0].meta.get('title')}\"). Nothing changes until its text is added."
-                )
+            if row.title:
+                without_text.append(row)
             else:
                 report.warn(f"{where}: marked archived, but there is no resolution with this number in the database. Check the number.")
             continue
@@ -401,6 +399,11 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
             target.meta["status"] = "archived"
             changed.add(target.id)
         report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
+    if without_text:
+        report.warn(
+            f"{name}: {len(without_text)} archived resolution(s) are not in the database (OPEN_TASKS.md lists them); "
+            "nothing changes for them. A line meant to archive a resolution in force needs that resolution's title."
+        )
 
     for row in rows:  # 'Adopted at' completes resolutions whose congress is not known yet (migration)
         if row.status != "in force" or not row.adopted_at:
@@ -424,8 +427,14 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
         ):
             report.warn(f"resolutions/{res.path.name} is {res.meta['status']}, but the status list says 'in force'. Update the status list.")
 
-    listed = {row.number for row in rows}
-    missing = sorted((r for r in in_force.values() if r.number not in listed), key=lambda r: status_list.number_key(r.number))
+    def listed(res):  # a line of an old resolution with the same number and another title does not count
+        title = str(res.meta.get("title", ""))
+        return any(
+            row.number == res.number and (row.status != "archived" or not row.title or status_list.titles_match(row.title, title))
+            for row in rows
+        )
+
+    missing = sorted((r for r in in_force.values() if not listed(r)), key=lambda r: status_list.number_key(r.number))
     if not fix:
         if missing:
             report.warn(f"{name}: no row yet for {', '.join(r.number for r in missing)} (validate.py --fix adds them).")
