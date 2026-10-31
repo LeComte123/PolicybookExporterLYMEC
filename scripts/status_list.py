@@ -1,7 +1,6 @@
 """The status list resolution_status_list.csv: the Bureau's record of every Policy Book number.
 
-One row per resolution; a number can have several rows (one in force, archived ones that had the number
-before a renumbering). The columns the Bureau edits come first, so a change is made at the start of a
+One row per number (a number is never given twice). The columns the Bureau edits come first, so a change is made at the start of a
 line in the GitHub web editor: Number, Status ("in force", "archived" or "not used"), Archived at
 (congress id), Replaced by (number), then Title and Adopted at (congress id; fills in the congress of a
 resolution that has none). GitHub shows the file as a table; it can also be edited in Excel and

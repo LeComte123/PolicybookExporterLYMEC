@@ -274,20 +274,19 @@ def test_status_list_replaced_by_makes_it_superseded(repo, make_status_list):
 
 
 def test_status_list_title_must_match(repo, make_status_list):
-    """A row with a title only archives the resolution with that title: another title is an old resolution
-    that had the number before a renumbering, whose text is not in the database."""
-    make_status_list(repo, [("6.21", "A completely different resolution", "archived"), ("6.21", "", "in force")])
+    """A line with a title only archives the resolution with that title (protects against a wrong number)."""
+    make_status_list(repo, [("6.21", "A completely different resolution", "archived"), ("6.22", "", "in force")])
     report = validate.validate(repo, fix=True)
-    assert report.errors == []
-    assert any("1 archived resolution(s) are not in the database" in w for w in report.warnings)
+    assert any('6.21 is "Title of 2026-Vilnius-12". Check the number and the title.' in e for e in report.errors)
     assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
 
 
-def test_status_list_line_of_an_old_resolution_is_not_the_row_of_a_new_one(repo, make_status_list):
-    """A new resolution can get a number that an archived resolution had before a renumbering."""
-    make_status_list(repo, [("6.21", "", "in force"), ("6.22", "An old resolution that had this number", "archived")])
+def test_status_list_not_used_number_given_to_a_new_resolution(repo, make_status_list):
+    make_status_list(repo, [("6.21", "", "in force"), ("6.22", "", "not used")])
     report = validate.validate(repo, fix=True)
-    assert report.errors == [] and any("rows added for 6.22" in f for f in report.fixed)
+    assert report.errors == [] and any("6.22 changed from 'not used' to 'in force'" in f for f in report.fixed)
+    lines = (repo / "resolution_status_list.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert lines[2].startswith("6.22,in force,,,Title of 2026-Vilnius-18,")
 
 
 def test_status_list_row_already_satisfied_by_an_archived_resolution(repo, make_status_list):
@@ -301,9 +300,9 @@ def test_status_list_gets_rows_for_new_resolutions(repo, make_status_list):
     import status_list
 
     make_status_list(repo, [("6.21", "", "in force")])
-    assert any("no row yet for 6.22" in w for w in validate.validate(repo).warnings)
+    assert any("no line yet for 6.22" in w for w in validate.validate(repo).warnings)
     report = validate.validate(repo, fix=True)
-    assert any("rows added for 6.22" in f for f in report.fixed)
+    assert any("lines added for 6.22" in f for f in report.fixed)
     rows = status_list.load(repo)
     assert [(r.number, r.title, r.status) for r in rows] == [("6.21", "", "in force"), ("6.22", "Title of 2026-Vilnius-18", "in force")]
 
@@ -342,12 +341,10 @@ def test_status_list_saved_by_excel_is_repaired(repo):
     assert validate.validate(repo, fix=True).fixed == []  # already in the standard form
 
 
-def test_archived_line_without_title_next_to_a_line_in_force_is_refused(repo, make_status_list):
-    """An old resolution once had 6.21; today another one has it. Without a title the wrong one would be archived."""
+def test_one_line_per_number(repo, make_status_list):
     make_status_list(repo, [("6.21", "", "in force"), ("6.21", "", "archived"), ("6.22", "", "in force")])
     report = validate.validate(repo, fix=True)
-    assert report.errors == [] and any("another line says 6.21 is in force. Add the title" in w for w in report.warnings)
-    assert load(repo, "2026-Vilnius-12").meta["status"] == "in_force"
+    assert any("line 3: 6.21 is on line 2 as well. Keep one line per number" in e for e in report.errors)
 
 
 def test_migrated_resolution_may_have_no_congress_yet(repo):

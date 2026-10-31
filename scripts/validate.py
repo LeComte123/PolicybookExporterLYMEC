@@ -333,11 +333,12 @@ def derive_supersessions(resolutions: list[pbook.Resolution], by_id: dict, repor
 
 
 def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresses: dict, report: Report, fix: bool) -> set[str]:
-    """Apply the Bureau's status list: rows marked 'archived' archive the resolution with that number.
+    """Apply the Bureau's status list: one line per Policy Book number; 'archived' archives that resolution.
 
-    A row with a title only matches a resolution with that title (protects against renumbering
-    mix-ups). A row is already satisfied when a resolution with its number is no longer in force.
-    With --fix, rows for new resolutions are added and the file is written in its standard form.
+    A line with a title only matches a resolution with that title (protects against a wrong number). A
+    line is already satisfied when the resolution with its number is no longer in force. With --fix, lines
+    for new resolutions are added ('not used' becomes 'in force' when a new resolution gets the number) and
+    the file is written in its standard form.
     """
     name = status_list.FILE
     try:
@@ -349,36 +350,37 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
         return set()
     header, records = table
     rows = status_list.rows_of(records)
+    first_line: dict[str, int] = {}
     for row in rows:
         if not pbook.NUMBER_RE.match(row.number):
             report.error(f"{name} line {row.line}: '{row.number}' is not a Policy Book number like 6.21. Correct it.")
         if row.status and row.status not in status_list.STATUSES:
             report.error(f"{name} line {row.line} ({row.number}): status '{row.status}' is not allowed. Write in force, archived or not used.")
+        if row.number in first_line:
+            report.error(f"{name} line {row.line}: {row.number} is on line {first_line[row.number]} as well. Keep one line per number and delete the other.")
+        first_line.setdefault(row.number, row.line)
 
     numbered = [r for r in resolutions if isinstance(r.meta.get("number"), str)]
     in_force = {r.number: r for r in numbered if r.meta.get("status") == "in_force"}
     replaced = {t for r in resolutions for t in r.meta.get("replaces") or [] if isinstance(t, str)}
     changed = set()
-    without_text = []  # archived resolutions that had the number before a renumbering; text not in the database
     for row in rows:
         if row.status != "archived":
             continue
         where = f"{name} line {row.line} ({row.number})"
-        if not row.title and any(r is not row and r.number == row.number and r.status == "in force" for r in rows):
-            # The number has a line 'in force' as well: an old resolution that had this number before a
-            # renumbering. Without its title it is unclear which one is meant, so nothing is archived.
-            report.warn(f"{where}: marked archived, but another line says {row.number} is in force. Add the title of the archived resolution.")
-            continue
         same = [r for r in numbered if r.number == row.number]
         matching = [r for r in same if not row.title or status_list.titles_match(row.title, str(r.meta.get("title", "")))]
         if any(r.meta.get("status") != "in_force" for r in matching):
             continue  # already archived or superseded
         target = next((r for r in matching if r.meta.get("status") == "in_force"), None)
         if target is None:
-            if row.title:
-                without_text.append(row)
+            if same:
+                report.error(
+                    f"{where}: marked archived as \"{row.title}\", but resolution {row.number} is \"{same[0].meta.get('title')}\". "
+                    "Check the number and the title."
+                )
             else:
-                report.warn(f"{where}: marked archived, but there is no resolution with this number in the database. Check the number.")
+                report.error(f"{where}: marked archived, but there is no resolution with this number. Check the number.")
             continue
         if target.id in replaced:
             continue  # superseded by the resolution that replaces it (derive_supersessions)
@@ -399,11 +401,6 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
             target.meta["status"] = "archived"
             changed.add(target.id)
         report.fixed.append(f"resolutions/{target.path.name}: {result}, as marked in the status list")
-    if without_text:
-        report.warn(
-            f"{name}: {len(without_text)} archived resolution(s) are not in the database (older resolutions whose texts are "
-            "missing); nothing changes for them. A line meant to archive a resolution in force needs that resolution's title."
-        )
 
     for row in rows:  # 'Adopted at' completes resolutions whose congress is not known yet (migration)
         if row.status != "in force" or not row.adopted_at:
@@ -427,21 +424,24 @@ def check_status_list(root: Path, resolutions: list[pbook.Resolution], congresse
         ):
             report.warn(f"resolutions/{res.path.name} is {res.meta['status']}, but the status list says 'in force'. Update the status list.")
 
-    def listed(res):  # a line of an old resolution with the same number and another title does not count
-        title = str(res.meta.get("title", ""))
-        return any(
-            row.number == res.number and (row.status != "archived" or not row.title or status_list.titles_match(row.title, title))
-            for row in rows
-        )
-
-    missing = sorted((r for r in in_force.values() if not listed(r)), key=lambda r: status_list.number_key(r.number))
+    line_of = {row.number: rec for row, rec in zip(rows, records)}
+    new = sorted((r for r in in_force.values() if r.number not in line_of), key=lambda r: status_list.number_key(r.number))
+    taken = sorted(  # a free number given to a new resolution
+        (r for r in in_force.values() if r.number in line_of and line_of[r.number].get("Status", "").strip().lower() == "not used"),
+        key=lambda r: status_list.number_key(r.number),
+    )
     if not fix:
-        if missing:
-            report.warn(f"{name}: no row yet for {', '.join(r.number for r in missing)} (validate.py --fix adds them).")
+        if new:
+            report.warn(f"{name}: no line yet for {', '.join(r.number for r in new)} (validate.py --fix adds them).")
+        if taken:
+            report.warn(f"{name}: {', '.join(r.number for r in taken)} still 'not used', but a resolution has the number now (validate.py --fix updates the lines).")
         return changed
-    if status_list.write(root, header, records + [status_list.new_record(r) for r in missing]):
-        added = f"rows added for {', '.join(r.number for r in missing)}; " if missing else ""
-        report.fixed.append(f"{name}: {added}written in the standard form (sorted, comma separated)")
+    for res in taken:
+        line_of[res.number].update(status_list.new_record(res))
+    if status_list.write(root, header, records + [status_list.new_record(r) for r in new]):
+        done = [f"lines added for {', '.join(r.number for r in new)}"] if new else []
+        done += [f"{', '.join(r.number for r in taken)} changed from 'not used' to 'in force'"] if taken else []
+        report.fixed.append(f"{name}: {'; '.join(done + ['written in the standard form (sorted, comma separated)'])}")
     return changed
 
 

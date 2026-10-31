@@ -156,10 +156,9 @@ new resolutions are then corrected automatically.
 ## Archiving resolutions: the status list
 
 The file **resolution_status_list.csv** (on the main page of this repository) lists every Policy
-Book number with its status: `in force`, `archived` or `not used`. It also lists the resolutions
-archived since 2020 under the numbers they had then (from the Digital Assemblies; the chapters were
-renumbered after each renewal), so a number can have more than one line. GitHub shows it as a table
-with a search box. The Bureau keeps it up to date. It decides which resolutions are archived:
+Book number with its status: `in force`, `archived` or `not used`, one line per number. A number is
+never given twice: new resolutions get the next number after the highest one in their chapter, and an
+archived resolution keeps its number. GitHub shows it as a table with a search box. The Bureau keeps it up to date. It decides which resolutions are archived:
 
 - Every resolution marked **archived** in the list is archived: it leaves the Policy Book and moves to
   the archive edition.
@@ -175,8 +174,7 @@ with a search box. The Bureau keeps it up to date. It decides which resolutions 
    file*). Each line is one resolution. The columns are separated by commas; the first four are
    **Number, Status, Archived at, Replaced by**.
 2. Find the line of the resolution: press Ctrl+F (Mac: Cmd+F) and search for the number followed by
-   a comma, e.g. `6.03,`. If the number has several lines, take the one that says `in force` (the
-   `archived` lines are older resolutions that had the same number). The line starts like this:
+   a comma, e.g. `6.03,`. The line starts like this:
 
    ```
    6.03,in force,,,The future is Nuclear,2011-Utrecht
@@ -211,9 +209,9 @@ resolution is meant. The **Title** is used to double-check that the number is ri
 
 ### Where the list comes from
 
-The list was filled once from the Vienna 2026 Policy Book, the congress minutes and the Digital
-Assemblies of 2020–2023 (lymec.eu/documents). The column **Adopted at** is the congress where a
-resolution was adopted. If a resolution in force does not know its congress yet (its PDF says
+The list starts with the Vienna 2026 Policy Book: every number in it is `in force`, the numbers it
+skips are `not used`. Resolutions archived before 2026 are not in the list, because their texts are
+not available. The column **Adopted at** is the congress where a resolution was adopted. If a resolution in force does not know its congress yet (its PDF says
 "Congress not known"), write the congress there, e.g. `2015-Rotterdam`: the resolution gets it
 automatically.
 

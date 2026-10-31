@@ -109,7 +109,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
 - Archiving is confirmed by the Bureau's status list (user's decision), resolution_status_list.csv in
   the repo root (CSV, not xlsx: GitHub can show and edit it online). Columns found by header:
   Number, Status, Archived at, Replaced by, Title, Adopted at (fills an empty congress: validate --fix);
-  columns the Bureau adds are kept after these. A number can have several lines (see Phase 6). Read with
+  columns the Bureau adds are kept after these. One line per number (a second line is an error). Read with
   delimiter sniffing and cp1252 fallback; validate --fix writes the standard form (comma, UTF-8 with
   BOM for Excel, sorted by number, 6.1 → 6.10), which repairs Excel round trips.
   - Statement paragraphs in a motion text, anywhere in it ("This motion/resolution replaces|archives|
@@ -126,7 +126,7 @@ Resolution text in Markdown (without the Submitted by / Co-signed by lines; they
     the Vienna texts ("This resolution archives 2.21 …") are checked against the list.
   - The list was generated from the Vienna PDF (225 in force, 61 gap numbers, congress per resolution
     where the "Adopted at" line could be read). The congresses read from the book are in congresses.yml
-    (comments mark uncertain data; Spring and Autumn 2025 are still missing; Autumn 2024 = Warsaw, from a
+    (comments mark uncertain data; Autumn 2024 = Warsaw, from a
     "prior to Warsaw, Autumn 2024" note in the book).
 - Status `archived` replaces the planned `repealed` (LYMEC's word, shown as "Archived").
 - A congress missing from congresses.yml gets a placeholder entry (city from the id, upload day as
@@ -223,13 +223,14 @@ line comes from), last in commit 9878d20.
   submitter lists of migrated resolutions came from the minutes (agenda lists "title – mover", "presented
   by Name (Org)", "Resolution N is carried").
   Prefill errors corrected: 2.35 (Online Autumn 2020, not Sofia 2012), 6.01 (Tallinn 2013, not Paris 1992).
-- Status list: the 61 gap numbers were 'not used' (user's rule: unless the Vienna book shows them archived);
-  52 'archived' lines record the resolutions the old texts say were archived or merged (old numbers,
-  titles where given, Archived at, Replaced by for merges). Archived lines for old resolutions (number used
-  today by another one, or by none) change nothing: validate sums them up in one warning (titled lines) or
-  warns per line (untitled: "add the title" / "check the number"). A number can have several lines (one in
-  force, archived ones of earlier numberings); a new resolution whose number only has archived lines with
-  other titles gets its own 'in force' line.
+- Status list, clean cut at the Vienna 2026 book (user's decision): one line per number; numbers are never
+  given twice (new = after the highest in the chapter, archived ones keep theirs). Resolutions archived
+  before 2026 (texts not available) are not in the list: the 157 archived lines researched from the old
+  texts and the Digital Assemblies (below) were removed again, their numbers are 'not used' (70 in all,
+  incl. 9 above a chapter's highest number, e.g. 4.29; a new resolution that gets such a number turns
+  its line into 'in force', validate --fix). The research is in the git history (commit 006eb71).
+  An archived line whose title does not match the resolution with that number, or a number without a
+  resolution, is an error (check the number and the title).
 - Digital Assemblies 1–7 (June 2020 – Sept 2023, lymec.eu/documents; the renewal of chapters 2–9, chapter 1
   was never renewed) give number – title – decision tables; each archival was confirmed by the next congress
   (minutes checked: Online Autumn 2020, Online 2021, Paris 2021, Prague 2022, Bucharest 2022, Budapest 2023,
@@ -240,5 +241,5 @@ line comes from), last in commit 9878d20.
   Russia, 2.24 Vatican), chapter 10 (internal motions, not in the 9-chapter book), and the old 9.20 Kosova
   (merged into the new 9.20 with the same number and title: a line would archive today's 9.20). Merged
   texts without an adoption line (3.01, 3.02, 3.09, 3.10, 5.01, 5.03, 9.20) got the congress that adopted
-  the merger. Full texts of archived resolutions are only in older editions of the book (none available),
-  so the archived resolutions are in the status list only, not in the database.
+  the merger (kept). Full texts of archived resolutions are only in older editions of the book (none
+  available).
