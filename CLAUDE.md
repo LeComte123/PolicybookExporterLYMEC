@@ -171,7 +171,10 @@ uv run scripts/make_reference_docx.py            # regenerate templates/referenc
   archive edition adds resolutions no longer in force, each with a status banner. site/index.html:
   all downloads, a search box (plain JS), the build date.
 - Resolution bodies are GitHub Markdown; build.py converts them to pandoc Markdown (-smart) and
-  combines them with generated parts (raw LaTeX blocks for labels, banners, index).
+  combines them with generated parts (raw LaTeX blocks for labels, banners, index). That round trip can
+  turn deeply nested lists into an indented code block (typewriter font, seen in 9.01), so every
+  PDF/DOCX run uses templates/no_code_blocks.lua: resolutions never contain code, a code block is read
+  as normal text again.
 - PDFs: xelatex, KOMA-Script (scrartcl/scrreprt), Arial with Ligatures=TeXOff so text prints
   exactly as written. Templates reuse pandoc's partials ($common.latex()$ etc.), so CI must use a
   pandoc version with the same partials (local: 3.13, CI: 3.11; both work).
@@ -202,6 +205,11 @@ line comes from), last in commit 9878d20.
   stray bullets (●) dropped, zero-width spaces removed, "Considering that:" stuck to the 4.08 title
   moved into the text, text that Markdown would show as code (deep indentation, tab after a bullet)
   moved left with pandoc as the judge. Line/paragraph breaks inside sentences are the source's own.
+  List levels: the Markdown export indents following bullets a little further each time ("staircase"),
+  so in 116 resolutions bullets were one level too deep. Corrected afterwards (user's request) from the
+  .docx, read with pandoc (true list levels): only leading spaces changed, checked per file (same text in
+  the same order, same number of list items, no code blocks). Only 9.41 keeps one bullet a level higher
+  than in the .docx (the .docx skips a level there).
 - Ids PB2026-<number> (not <congress>-…: 38 resolutions have no known congress yet). Congress from the
   status list ('Adopted at'), else null, filled in later by validate --fix from the status list.
   Shown as "Congress not known" in the PDFs and last in the index by congress.

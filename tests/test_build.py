@@ -1,6 +1,7 @@
 import datetime as dt
 import re
 import shutil
+import subprocess
 import zipfile
 
 import pymupdf
@@ -180,3 +181,13 @@ def test_resolution_with_unknown_congress(built):
     lines = text_of(built / "dist" / "LYMEC_Policy_Book.pdf").splitlines()
     index = lines[lines.index("Index by congress"):]
     assert index.index("Congress not known") > index.index("LYMEC Autumn Congress 2026, Vilnius (25 October 2026)")
+
+
+def test_text_indented_too_far_is_not_printed_as_code():
+    """Deeply nested lists can come out of the Markdown conversion indented as a code block (typewriter font)."""
+    text = "**Section**\n\n        * A bullet indented much too far\n        * Another one\n"
+    filter_file = pbook.ROOT / "templates" / "no_code_blocks.lua"
+    out = subprocess.run(
+        ["pandoc", "-f", "markdown-smart", "--lua-filter", str(filter_file), "-t", "json"], input=text, capture_output=True, text=True, check=True
+    ).stdout
+    assert '"CodeBlock"' not in out and '"BulletList"' in out

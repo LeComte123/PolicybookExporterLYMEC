@@ -169,6 +169,7 @@ def template_args(ctx: Context, template: str, meta: dict, tmp: Path) -> list:
     meta_file.write_text(yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return [
         "-f", "markdown-smart",
+        "--lua-filter", ctx.templates / "no_code_blocks.lua",
         "--metadata-file", meta_file,
         "--template", ctx.templates / template,
         "--pdf-engine=xelatex",
@@ -208,7 +209,8 @@ def build_single(ctx: Context, res: pbook.Resolution, body: str, out_dir: Path) 
     if text := banner(ctx, res, set()):
         parts.append(f"**{text}**")
     parts.append(shift_headings(body, 1))
-    args = ["-f", "markdown-smart", "--reference-doc", ctx.templates / "reference.docx", "-o", out_dir / f"{res.path.stem}.docx"]
+    args = ["-f", "markdown-smart", "--lua-filter", ctx.templates / "no_code_blocks.lua", "--reference-doc", ctx.templates / "reference.docx"]
+    args += ["-o", out_dir / f"{res.path.stem}.docx"]
     run_pandoc(args, ctx, "\n\n".join(parts), f"the DOCX of {res.path.stem}")
 
 
